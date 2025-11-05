@@ -1,6 +1,6 @@
-# AgentScope Extensions Nacos - Python SDK
+# AgentScope Extensions Nacos - Python
 
-Nacos extensions component for agentscope - Python SDK
+Nacos extensions component for agentscope - Python
 
 ## Installation
 

@@ -7,50 +7,50 @@ This project provides integration between AgentScope and Nacos service discovery
 
 ```
 agentscope-extensions-nacos/
-├── java-sdk/           # Java implementation (Maven)
+├── java/           # Java implementation (Maven)
 │   ├── pom.xml
 │   └── src/
 │       ├── main/java/
 │       └── test/java/
-└── python-sdk/         # Python implementation
+└── python/         # Python implementation
     ├── setup.py
     ├── agentscope_nacos/
     └── tests/
 ```
 
-## Java SDK
+## Java
 
 The Java SDK is built with Maven and provides Nacos integration for Java-based AgentScope applications.
 
 ### Building
 
 ```bash
-cd java-sdk
+cd java
 mvn clean install
 ```
 
 ### Testing
 
 ```bash
-cd java-sdk
+cd java
 mvn test
 ```
 
-## Python SDK
+## Python
 
 The Python SDK provides Nacos integration for Python-based AgentScope applications.
 
 ### Installation
 
 ```bash
-cd python-sdk
+cd python
 pip install -e .
 ```
 
 ### Testing
 
 ```bash
-cd python-sdk
+cd python
 python -m unittest discover -s tests
 ```
 
