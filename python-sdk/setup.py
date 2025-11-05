@@ -1,13 +1,18 @@
 from setuptools import setup, find_packages
+import os
 
-with open("README.md", "r", encoding="utf-8") as fh:
-    long_description = fh.read()
+# Read README from the same directory as setup.py
+here = os.path.abspath(os.path.dirname(__file__))
+try:
+    with open(os.path.join(here, "README.md"), "r", encoding="utf-8") as fh:
+        long_description = fh.read()
+except FileNotFoundError:
+    long_description = "Nacos extensions component for agentscope - Python SDK"
 
 setup(
     name="agentscope-extensions-nacos",
     version="1.0.0",
     author="AgentScope Team",
-    author_email="",
     description="Nacos extensions component for agentscope - Python SDK",
     long_description=long_description,
     long_description_content_type="text/markdown",
