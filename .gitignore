@@ -108,7 +108,7 @@ instance/
 docs/_build/
 
 # PyBuilder
-target/
+.pybuilder/
 
 # Jupyter Notebook
 .ipynb_checkpoints
@@ -169,12 +169,6 @@ out/
 
 # CMake
 cmake-build-*/
-
-# File-based project format
-*.iws
-
-# IntelliJ
-out/
 
 # mpeltonen/sbt-idea plugin
 .idea_modules/
