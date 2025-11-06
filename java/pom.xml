@@ -5,14 +5,19 @@
     <modelVersion>4.0.0</modelVersion>
     
     <groupId>io.agentscope</groupId>
-    <artifactId>agentscope-extensions-nacos-java</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <artifactId>agentscope-extensions-nacos</artifactId>
+    <version>${revision}</version>
     <packaging>pom</packaging>
     
     <name>AgentScope Extensions Nacos Java</name>
     <description>Nacos extensions component for agentscope - Java</description>
+    <modules>
+        <module>agentscope-extension-a2a</module>
+    </modules>
     
     <properties>
+        <revision>0.1.0-SNAPSHOT</revision>
+        
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <java.version>17</java.version>
         <maven.compiler.source>17</maven.compiler.source>
@@ -20,12 +25,15 @@
         
         <agentscope.version>0.1.0</agentscope.version>
         <nacos.version>3.1.0</nacos.version>
+        <a2a-java.version>0.3.2.Final</a2a-java.version>
+        <logback.version>1.5.20</logback.version>
         
         <junit5.version>5.14.1</junit5.version>
         <mockito.version>5.20.0</mockito.version>
         
         <maven-compiler-plugin.version>3.8.1</maven-compiler-plugin.version>
         <maven-surefire-plugin.version>3.2.5</maven-surefire-plugin.version>
+        <maven-flatten-plugin.version>1.7.3</maven-flatten-plugin.version>
     </properties>
     
     <dependencyManagement>
@@ -42,6 +50,24 @@
                 <groupId>com.alibaba.nacos</groupId>
                 <artifactId>nacos-client</artifactId>
                 <version>${nacos.version}</version>
+            </dependency>
+            
+            <!-- A2A Java -->
+            <dependency>
+                <groupId>io.github.a2asdk</groupId>
+                <artifactId>a2a-java-sdk-parent</artifactId>
+                <version>${a2a-java.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            
+            <!-- Log -->
+            <dependency>
+                <groupId>ch.qos.logback</groupId>
+                <artifactId>logback-parent</artifactId>
+                <version>${logback.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
             </dependency>
             
             <!-- JUnit for testing -->
@@ -61,6 +87,24 @@
             </dependency>
         </dependencies>
     </dependencyManagement>
+    
+    <dependencies>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
     
     <build>
         <plugins>
@@ -82,6 +126,39 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>${maven-surefire-plugin.version}</version>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>flatten-maven-plugin</artifactId>
+                <version>${maven-flatten-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>flatten</id>
+                        <goals>
+                            <goal>flatten</goal>
+                        </goals>
+                        <phase>process-resources</phase>
+                        <configuration>
+                            <updatePomFile>true</updatePomFile>
+                            <flattenMode>ossrh</flattenMode>
+                            <pomElements>
+                                <distributionManagement>remove</distributionManagement>
+                                <dependencyManagement>remove</dependencyManagement>
+                                <repositories>remove</repositories>
+                                <scm>keep</scm>
+                                <url>keep</url>
+                                <organization>resolve</organization>
+                            </pomElements>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>clean</id>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                        <phase>clean</phase>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
