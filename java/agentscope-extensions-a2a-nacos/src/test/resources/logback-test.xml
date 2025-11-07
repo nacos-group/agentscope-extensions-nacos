@@ -8,7 +8,7 @@
     </appender>
 
     <!-- 设置本工程包的日志级别为DEBUG -->
-    <logger name="io.agentscope.extensions.a2a" level="DEBUG" />
+    <logger name="io.agentscope.extensions" level="DEBUG" />
 
     <!-- 设置其他包的日志级别为INFO -->
     <root level="INFO">

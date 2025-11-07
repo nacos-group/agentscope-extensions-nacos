@@ -10,9 +10,10 @@
     <packaging>pom</packaging>
     
     <name>AgentScope Extensions Nacos Java</name>
-    <description>Nacos extensions component for agentscope - Java</description>
+    <description>AgentScope extensions component for Nacos - Java</description>
     <modules>
         <module>agentscope-extension-a2a</module>
+        <module>agentscope-extensions-a2a-nacos</module>
     </modules>
     
     <properties>
