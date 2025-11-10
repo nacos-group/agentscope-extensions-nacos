@@ -26,6 +26,8 @@ public class NacosAgentCardProducer implements AgentCardProducer {
     
     private final Map<String, AgentCard> agentCardCaches;
     
+    private final Map<String, AgentCardUpdater> agentCardUpdaters;
+    
     public NacosAgentCardProducer(Properties properties) throws NacosException {
         this(AiFactory.createAiService(properties));
     }
@@ -33,17 +35,23 @@ public class NacosAgentCardProducer implements AgentCardProducer {
     public NacosAgentCardProducer(AiService aiService) {
         this.aiService = aiService;
         this.agentCardCaches = new ConcurrentHashMap<>(2);
+        this.agentCardUpdaters = new ConcurrentHashMap<>(2);
     }
     
     @Override
     public AgentCard produce(String agentName) {
-        return agentCardCaches.computeIfAbsent(agentName, this::getAndSubscribe);
+        if (agentCardCaches.containsKey(agentName)) {
+            return agentCardCaches.get(agentName);
+        }
+        AgentCard result = getAndSubscribe(agentName);
+        // If already put by listener, use listener put value
+        return agentCardCaches.computeIfAbsent(agentName, name -> result);
     }
     
     private AgentCard getAndSubscribe(String agentName) {
         try {
-            aiService.subscribeAgentCard(agentName, new AgentCardUpdater());
-            AgentCardDetailInfo agentCardDetailInfo = aiService.getAgentCard(agentName);
+            AgentCardUpdater updater = agentCardUpdaters.computeIfAbsent(agentName, name -> new AgentCardUpdater());
+            AgentCardDetailInfo agentCardDetailInfo = aiService.subscribeAgentCard(agentName, updater);
             return AgentCardConverterUtil.convertToA2aAgentCard(agentCardDetailInfo);
         } catch (NacosException e) {
             throw new NacosRuntimeException(e.getErrCode(), e.getErrMsg(), e);
