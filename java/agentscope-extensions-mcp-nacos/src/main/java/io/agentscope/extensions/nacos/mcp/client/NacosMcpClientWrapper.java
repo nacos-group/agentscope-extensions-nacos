@@ -9,14 +9,18 @@ import com.alibaba.nacos.api.exception.runtime.NacosRuntimeException;
 import com.alibaba.nacos.common.utils.StringUtils;
 import io.agentscope.core.tool.mcp.McpClientBuilder;
 import io.agentscope.core.tool.mcp.McpClientWrapper;
+import io.agentscope.extensions.nacos.mcp.tool.NacosToolkit;
 import io.modelcontextprotocol.json.McpJsonMapper;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -41,12 +45,15 @@ public class NacosMcpClientWrapper extends McpClientWrapper {
     
     private final NacosMcpClientBuilder.ClientLifecycleCallback lifecycleCallback;
     
+    private final Map<NacosToolkit, NacosToolkit.ToolsRefresher> subscriberToolkits;
+    
     NacosMcpClientWrapper(boolean asyncClient, McpServerDetailInfo mcpServer,
             NacosMcpClientBuilder.ClientLifecycleCallback lifecycleCallback) {
         super(mcpServer.getName());
         this.asyncClient = asyncClient;
         this.mcpServer = mcpServer;
         this.lifecycleCallback = lifecycleCallback;
+        this.subscriberToolkits = new ConcurrentHashMap<>(2);
     }
     
     @Override
@@ -54,6 +61,8 @@ public class NacosMcpClientWrapper extends McpClientWrapper {
         if (isInitialized()) {
             return Mono.empty();
         }
+        
+        log.info("Initializing Nacos MCP client: {} with Async: {}", name, this.asyncClient);
         
         return rebuildMcpClient(mcpServer).doOnNext(client -> this.mcpClient = client)
                 .then(Mono.defer((Supplier<Mono<?>>) () -> {
@@ -80,7 +89,19 @@ public class NacosMcpClientWrapper extends McpClientWrapper {
     @Override
     public void close() {
         this.lifecycleCallback.onClose(this);
+        this.subscriberToolkits.clear();
         this.mcpClient.close();
+    }
+    
+    /**
+     * Register a toolkit refresher to this MCP client wrapper. The registered refresher will be notified when the MCP
+     * client is refreshed.
+     *
+     * @param toolkit   the Nacos toolkit to register
+     * @param refresher the refresher associated with the toolkit
+     */
+    public void registerToolkitRefresher(NacosToolkit toolkit, NacosToolkit.ToolsRefresher refresher) {
+        this.subscriberToolkits.put(toolkit, refresher);
     }
     
     /**
@@ -89,17 +110,18 @@ public class NacosMcpClientWrapper extends McpClientWrapper {
      * <p>This method rebuilds the MCP client using the provided server information,
      * replaces the current client with the new one, and closes the old client.
      *
-     * @param mcpServer the new MCP server information to use for rebuilding the client
+     * @param mcpServer the new MCP server information to use for rebuilding the client.
+     * @see io.agentscope.extensions.nacos.mcp.NacosMcpServerManager#subscribeMcpClients
      */
     public void refresh(McpServerDetailInfo mcpServer) {
+        log.info("Refreshing Nacos MCP client: {} with Async: {}", name, this.asyncClient);
         rebuildMcpClient(mcpServer).flatMap(client -> client.initialize().thenReturn(client)).map(client -> {
-            this.mcpServer = mcpServer;
-            McpClientWrapper oldClient = this.mcpClient;
-            this.mcpClient = client;
-            return oldClient;
-        }).doOnNext(McpClientWrapper::close).doOnError(error -> {
-            log.error("Failed to refresh mcp client.", error);
-        }).then().block();
+                    this.mcpServer = mcpServer;
+                    McpClientWrapper oldClient = this.mcpClient;
+                    this.mcpClient = client;
+                    return oldClient;
+                }).doOnNext(McpClientWrapper::close).then().doOnSuccess(unused -> notifyToolkitRefreshers())
+                .doOnError(error -> log.error("Failed to refresh mcp client.", error)).block();
     }
     
     private Mono<McpClientWrapper> rebuildMcpClient(McpServerDetailInfo mcpServer) {
@@ -107,6 +129,8 @@ public class NacosMcpClientWrapper extends McpClientWrapper {
         McpClientBuilder builder = McpClientBuilder.create(getName());
         
         String url = parseUrl(mcpServer);
+        
+        log.debug("Building Nacos MCP client: {} with URL: {} and Protocol: {}", getName(), url, protocol);
         
         switch (protocol) {
             case AiConstants.Mcp.MCP_PROTOCOL_SSE -> builder.sseTransport(url);
@@ -150,6 +174,7 @@ public class NacosMcpClientWrapper extends McpClientWrapper {
             return originalTool;
         }
         try {
+            log.debug("Refresh tool spec for {} from Nacos.", originalTool.name());
             McpTool toolInNacos = toolsInNacos.get(originalTool.name());
             McpSchema.JsonSchema toolInputSchema = McpJsonMapper.getDefault()
                     .convertValue(toolInNacos.getInputSchema(), McpSchema.JsonSchema.class);
@@ -163,5 +188,10 @@ public class NacosMcpClientWrapper extends McpClientWrapper {
                     originalTool.name(), e);
             return originalTool;
         }
+    }
+    
+    private void notifyToolkitRefreshers() {
+        Set<NacosToolkit.ToolsRefresher> refreshers = new HashSet<>(this.subscriberToolkits.values());
+        refreshers.forEach(refresher -> refresher.doRefresh(this));
     }
 }

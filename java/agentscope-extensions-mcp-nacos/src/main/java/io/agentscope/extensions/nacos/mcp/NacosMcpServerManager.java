@@ -9,8 +9,11 @@ import com.alibaba.nacos.api.ai.model.mcp.McpTool;
 import com.alibaba.nacos.api.exception.NacosException;
 import com.alibaba.nacos.api.exception.runtime.NacosRuntimeException;
 import com.alibaba.nacos.common.utils.ConcurrentHashSet;
+import com.alibaba.nacos.common.utils.JacksonUtils;
 import com.alibaba.nacos.common.utils.StringUtils;
 import io.agentscope.extensions.nacos.mcp.client.NacosMcpClientWrapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.HashSet;
 import java.util.Map;
@@ -24,6 +27,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * @author xiweng.yy
  */
 public class NacosMcpServerManager {
+    
+    private static final Logger log = LoggerFactory.getLogger(NacosMcpServerManager.class);
     
     private final AiService aiService;
     
@@ -134,6 +139,10 @@ public class NacosMcpServerManager {
         
         @Override
         public void onEvent(NacosMcpServerEvent event) {
+            if (log.isDebugEnabled()) {
+                log.debug("MCP Server {} changed, new MCP Server Detail: {}", event.getMcpName(),
+                        JacksonUtils.toJson(event.getMcpServerDetailInfo()));
+            }
             mcpServerCaches.put(event.getMcpServerDetailInfo().getName(), event.getMcpServerDetailInfo());
             subscribeMcpClients.getOrDefault(event.getMcpName(), new HashSet<>())
                     .forEach(mcpClient -> mcpClient.refresh(event.getMcpServerDetailInfo()));

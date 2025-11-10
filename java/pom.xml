@@ -46,6 +46,12 @@
                 <groupId>io.agentscope</groupId>
                 <artifactId>agentscope-core</artifactId>
                 <version>${agentscope.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>org.slf4j</groupId>
+                        <artifactId>slf4j-simple</artifactId>
+                    </exclusion>
+                </exclusions>
             </dependency>
             
             <!-- Nacos Client -->
