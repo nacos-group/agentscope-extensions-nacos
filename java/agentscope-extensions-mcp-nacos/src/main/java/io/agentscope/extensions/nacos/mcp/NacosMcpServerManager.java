@@ -5,7 +5,6 @@ import com.alibaba.nacos.api.ai.AiService;
 import com.alibaba.nacos.api.ai.listener.AbstractNacosMcpServerListener;
 import com.alibaba.nacos.api.ai.listener.NacosMcpServerEvent;
 import com.alibaba.nacos.api.ai.model.mcp.McpServerDetailInfo;
-import com.alibaba.nacos.api.ai.model.mcp.McpTool;
 import com.alibaba.nacos.api.exception.NacosException;
 import com.alibaba.nacos.api.exception.runtime.NacosRuntimeException;
 import com.alibaba.nacos.common.utils.ConcurrentHashSet;
@@ -61,23 +60,6 @@ public class NacosMcpServerManager {
         McpServerDetailInfo result = getAndSubscribe(mcpName);
         // If already put by listener, use listener put value
         return mcpServerCaches.computeIfAbsent(mcpName, name -> result);
-    }
-    
-    /**
-     * Get MCP tool info by mcp name and tool name.
-     *
-     * @param mcpName  mcp name
-     * @param toolName tool name
-     * @return mcp tool info
-     */
-    public McpTool getMcpTool(String mcpName, String toolName) {
-        if (StringUtils.isBlank(toolName)) {
-            throw new NacosRuntimeException(NacosException.INVALID_PARAM, "toolName can not be null or blank.");
-        }
-        return getMcpServer(mcpName).getToolSpec().getTools().stream()
-                .filter(mcpTool -> toolName.equals(mcpTool.getName())).findFirst().orElseThrow(
-                        () -> new NacosRuntimeException(NacosException.NOT_FOUND,
-                                String.format("tool %s not found.", toolName)));
     }
     
     /**

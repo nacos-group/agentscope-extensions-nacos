@@ -1,5 +1,6 @@
 package io.agentscope.extensions.nacos.mcp.tool;
 
+import com.alibaba.nacos.api.ai.model.mcp.McpServerDetailInfo;
 import io.agentscope.core.tool.Toolkit;
 import io.agentscope.core.tool.ToolkitConfig;
 import io.agentscope.core.tool.mcp.McpClientWrapper;
@@ -17,8 +18,28 @@ import java.util.function.Supplier;
  * Extension for {@link io.agentscope.core.tool.Toolkit}.
  *
  * <p>Support dynamic refresh tools when MCP Server in Nacos changed.
+ * <p>Full replace {@link Toolkit} with same usages.
+ *
+ * <p>Example usage:
+ * <pre>{@code
+ *  McpClientWrapper agentscopeMcpClient = McpClientBuilder
+ *      .create(...)
+ *      .build();
+ *  McpClientWrapper nacosMcpClient = NacosMcpClientBuilder
+ *      .create(...)
+ *      .build();
+ *  // Use NacosToolkit same as {@link Toolkit}
+ *  Toolkit toolkit = new NacosToolkit();
+ *  // Both can register original agentscope MCP client and Nacos MCP client
+ *  toolkit.registerMcpClient(agentscopeMcpClient);
+ *  toolkit.registerMcpClient(nacosMcpClient);
+ *  ReActAgent agent = new ReActAgent(..., toolkit, ...);
+ *  agent.call()
+ * }
+ * </pre>
  *
  * @author xiweng.yy
+ * @see io.agentscope.core.tool.Toolkit#registerMcpClient(McpClientWrapper)
  */
 public class NacosToolkit extends Toolkit {
     
@@ -81,18 +102,18 @@ public class NacosToolkit extends Toolkit {
             log.debug("Register Nacos MCP client {} to Toolkit {}", mcpClientWrapper.getName(), NacosToolkit.this);
             McpClientInfo mcpClientInfo = new McpClientInfo(groupName, enableTools, disableTools);
             mcpClientInfos.put(nacosMcpClient.getName(), mcpClientInfo);
-            nacosMcpClient.registerToolkitRefresher(NacosToolkit.this, new ToolsRefresher());
+            nacosMcpClient.registerRefreshHook(new ToolsRefresher());
         }
     }
     
-    public class ToolsRefresher {
+    public class ToolsRefresher implements NacosMcpClientWrapper.RefreshHook {
         
-        public void doRefresh(NacosMcpClientWrapper nacosMcpClient) {
-            log.debug("Refresh Tools in Toolkit {} by Nacos MCP client {}", NacosToolkit.this,
-                    nacosMcpClient.getName());
-            McpClientInfo info = mcpClientInfos.getOrDefault(nacosMcpClient.getName(), EMPTY_MCP_CLIENT_INFO);
-            delegateRemoveMcpClient(nacosMcpClient.getName()).then(Mono.defer(
-                    (Supplier<Mono<?>>) () -> delegateRegisterMcpClient(nacosMcpClient, info.enableTools(),
+        @Override
+        public void postRefresh(McpServerDetailInfo mcpServer, NacosMcpClientWrapper mcpClient) {
+            log.debug("Refresh Tools in Toolkit {} by Nacos MCP client {}", NacosToolkit.this, mcpClient.getName());
+            McpClientInfo info = mcpClientInfos.getOrDefault(mcpClient.getName(), EMPTY_MCP_CLIENT_INFO);
+            delegateRemoveMcpClient(mcpClient.getName()).then(Mono.defer(
+                    (Supplier<Mono<?>>) () -> delegateRegisterMcpClient(mcpClient, info.enableTools(),
                             info.disableTools(), info.groupName()))).block();
         }
     }

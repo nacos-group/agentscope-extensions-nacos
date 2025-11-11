@@ -9,7 +9,6 @@ import com.alibaba.nacos.api.exception.runtime.NacosRuntimeException;
 import com.alibaba.nacos.common.utils.StringUtils;
 import io.agentscope.core.tool.mcp.McpClientBuilder;
 import io.agentscope.core.tool.mcp.McpClientWrapper;
-import io.agentscope.extensions.nacos.mcp.tool.NacosToolkit;
 import io.modelcontextprotocol.json.McpJsonMapper;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.slf4j.Logger;
@@ -17,10 +16,10 @@ import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
 
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -45,7 +44,7 @@ public class NacosMcpClientWrapper extends McpClientWrapper {
     
     private final NacosMcpClientBuilder.ClientLifecycleCallback lifecycleCallback;
     
-    private final Map<NacosToolkit, NacosToolkit.ToolsRefresher> subscriberToolkits;
+    private final List<RefreshHook> hooks;
     
     NacosMcpClientWrapper(boolean asyncClient, McpServerDetailInfo mcpServer,
             NacosMcpClientBuilder.ClientLifecycleCallback lifecycleCallback) {
@@ -53,7 +52,7 @@ public class NacosMcpClientWrapper extends McpClientWrapper {
         this.asyncClient = asyncClient;
         this.mcpServer = mcpServer;
         this.lifecycleCallback = lifecycleCallback;
-        this.subscriberToolkits = new ConcurrentHashMap<>(2);
+        this.hooks = new LinkedList<>();
     }
     
     @Override
@@ -89,19 +88,23 @@ public class NacosMcpClientWrapper extends McpClientWrapper {
     @Override
     public void close() {
         this.lifecycleCallback.onClose(this);
-        this.subscriberToolkits.clear();
+        this.hooks.clear();
         this.mcpClient.close();
     }
     
+    public McpServerDetailInfo getMcpServer() {
+        return mcpServer;
+    }
+    
     /**
-     * Register a toolkit refresher to this MCP client wrapper. The registered refresher will be notified when the MCP
-     * client is refreshed.
+     * Register a refresh hook to this MCP client wrapper. The registered hook will be notified when the MCP client is
+     * refreshed.
      *
-     * @param toolkit   the Nacos toolkit to register
-     * @param refresher the refresher associated with the toolkit
+     * @param hook the refresh hook to register
+     * @see #refresh(McpServerDetailInfo)
      */
-    public void registerToolkitRefresher(NacosToolkit toolkit, NacosToolkit.ToolsRefresher refresher) {
-        this.subscriberToolkits.put(toolkit, refresher);
+    public void registerRefreshHook(RefreshHook hook) {
+        this.hooks.add(hook);
     }
     
     /**
@@ -120,7 +123,7 @@ public class NacosMcpClientWrapper extends McpClientWrapper {
                     McpClientWrapper oldClient = this.mcpClient;
                     this.mcpClient = client;
                     return oldClient;
-                }).doOnNext(McpClientWrapper::close).then().doOnSuccess(unused -> notifyToolkitRefreshers())
+                }).doOnNext(McpClientWrapper::close).then().doOnSuccess(unused -> notifyHooks())
                 .doOnError(error -> log.error("Failed to refresh mcp client.", error)).block();
     }
     
@@ -190,8 +193,18 @@ public class NacosMcpClientWrapper extends McpClientWrapper {
         }
     }
     
-    private void notifyToolkitRefreshers() {
-        Set<NacosToolkit.ToolsRefresher> refreshers = new HashSet<>(this.subscriberToolkits.values());
-        refreshers.forEach(refresher -> refresher.doRefresh(this));
+    private void notifyHooks() {
+        McpServerDetailInfo mcpServerNotified = this.mcpServer;
+        Set<RefreshHook> hooks = new HashSet<>(this.hooks);
+        hooks.forEach(hook -> hook.postRefresh(mcpServerNotified, this));
+    }
+    
+    /**
+     * Hook called after {@link #refresh(McpServerDetailInfo)}.
+     */
+    @FunctionalInterface
+    public interface RefreshHook {
+        
+        void postRefresh(McpServerDetailInfo mcpServer, NacosMcpClientWrapper mcpClient);
     }
 }
