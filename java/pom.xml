@@ -12,7 +12,7 @@
     <name>AgentScope Extensions Nacos Java</name>
     <description>AgentScope extensions component for Nacos - Java</description>
     <modules>
-        <module>agentscope-extension-a2a</module>
+        <module>agentscope-extensions-a2a</module>
         <module>agentscope-extensions-a2a-nacos</module>
         <module>agentscope-extensions-mcp-nacos</module>
     </modules>

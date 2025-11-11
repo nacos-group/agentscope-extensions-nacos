@@ -10,7 +10,7 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
     
-    <artifactId>agentscope-extension-a2a</artifactId>
+    <artifactId>agentscope-extensions-a2a</artifactId>
     <name>AgentScope Extensions A2A Java</name>
     <description>Nacos extensions component for A2A(Agent2Agent) - Java</description>
     
