@@ -36,7 +36,6 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoSink;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.BiConsumer;
@@ -85,11 +84,6 @@ public class A2aAgent extends AgentBase {
     }
     
     @Override
-    protected Mono<Msg> doCall(Msg msg) {
-        return doCall(Collections.singletonList(msg));
-    }
-    
-    @Override
     protected Mono<Msg> doCall(List<Msg> msgs) {
         LoggerUtil.info(log, "[{}] A2aAgent start call.", currentTaskId);
         LoggerUtil.debug(log, "[{}] A2aAgent call with input messages: ", currentTaskId);
@@ -133,21 +127,6 @@ public class A2aAgent extends AgentBase {
         } catch (A2AClientException e) {
             return Mono.just(Msg.builder().content(TextBlock.builder().text(e.getMessage()).build()).build());
         }
-    }
-    
-    @Override
-    public Mono<Msg> call(Msg msg, Class<?> structuredModel) {
-        return call(Collections.singletonList(msg), structuredModel);
-    }
-    
-    @Override
-    public Mono<Msg> call(List<Msg> msgs, Class<?> structuredModel) {
-        return call(msgs);
-    }
-    
-    @Override
-    public Mono<Msg> call(Class<?> structuredModel) {
-        return call();
     }
     
     private Client buildA2aClient(String name) {

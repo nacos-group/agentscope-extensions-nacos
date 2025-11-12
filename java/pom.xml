@@ -15,21 +15,24 @@
         <module>agentscope-extensions-a2a</module>
         <module>agentscope-extensions-a2a-nacos</module>
         <module>agentscope-extensions-mcp-nacos</module>
+        <module>spring/spring-boot-starter-agentscope-runtime-a2a-nacos</module>
     </modules>
     
     <properties>
-        <revision>0.1.0-SNAPSHOT</revision>
+        <revision>0.2.0-SNAPSHOT</revision>
         
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <java.version>17</java.version>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         
-        <agentscope.version>0.1.0</agentscope.version>
+        <agentscope.version>0.2.0</agentscope.version>
+        <agentscope-runtime.version>0.1.0-SNAPSHOT</agentscope-runtime.version>
         <nacos.version>3.1.0</nacos.version>
         <a2a-java.version>0.3.2.Final</a2a-java.version>
         <mcp-java.version>0.14.1</mcp-java.version>
         <logback.version>1.5.20</logback.version>
+        <spring-boot.version>3.5.7</spring-boot.version>
         
         <junit5.version>5.14.1</junit5.version>
         <mockito.version>5.20.0</mockito.version>
@@ -52,6 +55,11 @@
                         <artifactId>slf4j-simple</artifactId>
                     </exclusion>
                 </exclusions>
+            </dependency>
+            <dependency>
+                <groupId>io.agentscope</groupId>
+                <artifactId>agentscope-runtime-web</artifactId>
+                <version>${agentscope-runtime.version}</version>
             </dependency>
             
             <!-- Nacos Client -->
@@ -82,6 +90,15 @@
                 <groupId>ch.qos.logback</groupId>
                 <artifactId>logback-parent</artifactId>
                 <version>${logback.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            
+            <!-- spring boot -->
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>

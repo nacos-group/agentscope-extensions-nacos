@@ -1,0 +1,4 @@
+io.agentscope.extensions.runtime.a2a.registry.autoconfigure.A2aServerRegistryAutoConfiguration
+io.agentscope.extensions.runtime.a2a.nacos.autoconfigure.NacosA2aRegistryAutoConfiguration
+io.agentscope.extensions.runtime.a2a.nacos.autoconfigure.NacosA2aPropertiesAutoConfiguration
+io.agentscope.extensions.runtime.a2a.nacos.autoconfigure.NacosA2aProtocolConfigAutoConfiguration

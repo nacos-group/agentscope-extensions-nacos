@@ -7,19 +7,14 @@
         <groupId>io.agentscope</groupId>
         <artifactId>agentscope-extensions-nacos</artifactId>
         <version>${revision}</version>
-        <relativePath>../pom.xml</relativePath>
+        <relativePath>../../pom.xml</relativePath>
     </parent>
     
-    <artifactId>agentscope-extensions-a2a-nacos</artifactId>
-    <name>AgentScope Extensions A2A Nacos Java</name>
-    <description>AgentScope extensions component for Nacos A2A Registry - Java</description>
+    <artifactId>spring-boot-starter-agentscope-runtime-a2a-nacos</artifactId>
+    <name>Spring Boot Starter for AgentScope Runtime Extensions A2A Nacos</name>
+    <description>AgentScope Runtime Extensions A2A Nacos Registry - Spring Boot Starter</description>
     
     <dependencies>
-        <dependency>
-            <groupId>io.agentscope</groupId>
-            <artifactId>agentscope-extensions-a2a</artifactId>
-            <version>${parent.version}</version>
-        </dependency>
         <dependency>
             <groupId>io.agentscope</groupId>
             <artifactId>agentscope-runtime-web</artifactId>
@@ -28,9 +23,18 @@
         </dependency>
         
         <dependency>
-            <groupId>com.alibaba.nacos</groupId>
-            <artifactId>nacos-client</artifactId>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+            <scope>provided</scope>
+            <optional>true</optional>
         </dependency>
+        
+        <dependency>
+            <groupId>io.agentscope</groupId>
+            <artifactId>agentscope-extensions-a2a-nacos</artifactId>
+            <version>${parent.version}</version>
+        </dependency>
+        
     </dependencies>
-
+    
 </project>
