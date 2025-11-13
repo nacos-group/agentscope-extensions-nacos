@@ -30,6 +30,6 @@ setup(
     ],
     python_requires=">=3.7",
     install_requires=[
-        "nacos-sdk-python>=0.1.5",
+        "nacos-sdk-python>=3.0.0",
     ],
 )
