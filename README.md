@@ -61,6 +61,15 @@ The project uses a comprehensive `.gitignore` file that covers:
 - Python artifacts (bytecode, virtual environments, distribution files)
 - IDE files (IntelliJ IDEA configuration files)
 
+## Contributing
+
+We welcome contributions! Please see our [CONTRIBUTING.md](CONTRIBUTING.md) guide for:
+- Setting up your development environment
+- Fork and branch workflow
+- Code style guidelines
+- Troubleshooting common issues (including 403 push errors)
+- Submitting pull requests
+
 ## License
 
 See LICENSE file for details.
