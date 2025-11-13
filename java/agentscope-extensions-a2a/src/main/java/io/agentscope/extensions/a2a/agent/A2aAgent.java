@@ -17,6 +17,7 @@
 package io.agentscope.extensions.a2a.agent;
 
 import io.a2a.client.Client;
+import io.a2a.client.ClientBuilder;
 import io.a2a.client.ClientEvent;
 import io.a2a.client.TaskUpdateEvent;
 import io.a2a.client.transport.jsonrpc.JSONRPCTransport;
@@ -59,6 +60,18 @@ import java.util.function.Function;
 
 /**
  * The implementation of Agent for A2A(Agent2Agent).
+ *
+ * <p>Example Usage:
+ * <pre>{@code
+ *  // Simple usage.
+ *  AgentCard agentCard = generateAgentCardByCode();
+ *  A2aAgent a2aAgent = new A2aAgent("remote-agent-name", agentCard);
+ *
+ *  // Auto get AgentCard
+ *  AgentCardProducer agentCardProducer = new WellKnownAgentCardProducer("http://127.0.0.1:8080", "/.well-known/agent-card.json", Map.of());
+ *  A2aAgentConfig a2aAgentConfig = A2aAgentConfig.builder().agentCardProducer(agentCardProducer).build()
+ *  A2aAgent a2aAgent = new A2aAgent("remote-agent-name", a2aAgentConfig);
+ * }</pre>
  *
  * @author xiweng.yy
  */
@@ -146,9 +159,14 @@ public class A2aAgent extends AgentBase {
     }
     
     private Client buildA2aClient(String name) {
-        // TODO current only support JSON RPC type transport.
-        return Client.builder(this.a2aAgentConfig.agentCardProducer().produce(name))
-                .withTransport(JSONRPCTransport.class, new JSONRPCTransportConfig()).build();
+        ClientBuilder builder = Client.builder(this.a2aAgentConfig.agentCardProducer().produce(name));
+        if (this.a2aAgentConfig.clientTransports().isEmpty()) {
+            // Default Add The Basic JSON-RPC Transport
+            builder.withTransport(JSONRPCTransport.class, new JSONRPCTransportConfig());
+        } else {
+            this.a2aAgentConfig.clientTransports().forEach(builder::withTransport);
+        }
+        return builder.build();
     }
     
     private Mono<Msg> doExecute(Message message) {
