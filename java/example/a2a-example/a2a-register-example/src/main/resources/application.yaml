@@ -1,0 +1,18 @@
+server:
+  port: 9999
+
+spring:
+  agentscope:
+    runtime:
+      a2a:
+        server-address: 127.0.0.1
+        server-port: 9999
+        card:
+          description: "Example of A2A(Agent2Agent) Protocol Agent"
+          provider:
+            organization: Alibaba Nacos
+            url: https://nacos.io
+        nacos:
+          server-addr: ${NACOS_SERVER_ADDRESS:127.0.0.1:8848}
+          username: ${NACOS_USERNAME:nacos}
+          password: ${NACOS_PASSWORD:nacos}
