@@ -48,6 +48,12 @@ public class NacosA2aRegistry {
         this.a2aService = a2aService;
     }
     
+    /**
+     * Register A2A agent card and endpoint to Nacos
+     *
+     * @param agentCard the agent card to register
+     * @param a2aProperties the properties for A2A registry
+     */
     public void registerAgent(io.a2a.spec.AgentCard agentCard, NacosA2aRegistryProperties a2aProperties) {
         AgentCard nacosAgentCard = AgentCardConverterUtil.convertToNacosAgentCard(agentCard);
         try {

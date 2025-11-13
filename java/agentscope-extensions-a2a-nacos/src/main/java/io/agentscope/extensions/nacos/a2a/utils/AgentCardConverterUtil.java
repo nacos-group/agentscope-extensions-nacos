@@ -30,6 +30,9 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
+ * AgentCard Converter between Nacos {@link com.alibaba.nacos.api.ai.model.a2a.AgentCard} and A2A specification
+ * {@link io.a2a.spec.AgentCard}.
+ *
  * @author xiweng.yy
  */
 public class AgentCardConverterUtil {

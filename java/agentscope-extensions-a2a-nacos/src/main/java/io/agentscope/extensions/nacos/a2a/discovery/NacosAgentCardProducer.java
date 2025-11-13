@@ -34,6 +34,28 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Agent Card Producer from Nacos A2A Registry.
  *
+ * <p>Example Usage:
+ * <pre>{@code
+ *  Properties properties = new Properties();
+ *  properties.put(PropertyKeyConst.SERVER_ADDR, "localhost:8848");
+ *  // put other Nacos server properties
+ *  // create NacosAgentCardProducer with new Nacos Client
+ *  NacosAgentCardProducer nacosAgentCardProducer = new NacosAgentCardProducer(properties);
+ *  // Equals like:
+ *  // AiService a2aService = AiFactory.createAiService(properties);
+ *  // NacosAgentCardProducer nacosAgentCardProducer = new NacosAgentCardProducer(a2aService)
+ *
+ *  // Or Reuse Nacos Client
+ *  AiService a2aService = getAiServiceFromCacheOrOtherComponent();
+ *  NacosAgentCardProducer nacosAgentCardProducer = new NacosAgentCardProducer(a2aService);
+ *
+ *  // Then new A2aAgent
+ *  A2aAgentConfig a2aAgentConfig = A2aAgentConfig.builder().agentCardProducer(nacosAgentCardProducer).build()
+ *  A2aAgent a2aAgent = new A2aAgent("remote-agent-name", a2aAgentConfig);
+ * }</pre>
+ *
+ * @see io.agentscope.extensions.a2a.agent.A2aAgent
+ * @see io.agentscope.extensions.a2a.agent.A2aAgentConfig.A2aAgentConfigBuilder
  * @author xiweng.yy
  */
 public class NacosAgentCardProducer implements AgentCardProducer {
