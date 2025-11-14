@@ -105,7 +105,10 @@ public class NacosMcpClientWrapper extends McpClientWrapper {
     public void close() {
         this.lifecycleCallback.onClose(this);
         this.hooks.clear();
-        this.mcpClient.close();
+        if (null != this.mcpClient) {
+            this.mcpClient.close();
+        }
+        this.initialized = false;
     }
     
     public McpServerDetailInfo getMcpServer() {

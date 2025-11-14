@@ -54,8 +54,8 @@ public class A2aAgentCallerExample {
             nacosServerAddress = System.getenv("NACOS_SERVER_ADDRESS");
         }
         String nacosUserName = "nacos";
-        if (StringUtils.isNotEmpty(System.getenv("NACOS_USER_NAME"))) {
-            nacosUserName = System.getenv("NACOS_USER_NAME");
+        if (StringUtils.isNotEmpty(System.getenv("NACOS_USERNAME"))) {
+            nacosUserName = System.getenv("NACOS_USERNAME");
         }
         String nacosPassword = "nacos";
         if (StringUtils.isNotEmpty(System.getenv("NACOS_PASSWORD"))) {
