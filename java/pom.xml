@@ -216,10 +216,11 @@
                 <version>${apache-rat-plugin.version}</version>
                 <configuration>
                     <excludes>
-                        <exclude>README.md</exclude>
+                        <exclude>**/README.md</exclude>
                         <exclude>.github/**/*</exclude>
                         <exclude>src/main/resources/static/**</exclude>
                         <exclude>**/.flattened-pom.xml</exclude>
+                        <exclude>**/application.yaml</exclude>
                     </excludes>
                 </configuration>
                 <executions>

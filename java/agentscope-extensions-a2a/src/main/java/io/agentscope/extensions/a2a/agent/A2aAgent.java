@@ -193,11 +193,14 @@ public class A2aAgent extends AgentBase {
         } else {
             if (taskUpdateEvent.getUpdateEvent() instanceof TaskStatusUpdateEvent) {
                 TaskStatus taskStatus = taskUpdateEvent.getTask().getStatus();
+                if (null == taskStatus.message()) {
+                    return;
+                }
                 Msg msg = buildMsgFromParts(taskStatus.message().getParts());
                 LoggerUtil.debug(log, "[{}] A2aAgent task status updated with messages: ", currentTaskId);
                 LoggerUtil.logTextMsgDetail(log, List.of(msg));
                 ReasoningChunkEvent event = new ReasoningChunkEvent(this, "A2A", null, msg, msg);
-                getSortedHooks().forEach(hook -> hook.onEvent(event));
+                getSortedHooks().forEach(hook -> hook.onEvent(event).block());
             }
         }
     }
@@ -222,6 +225,7 @@ public class A2aAgent extends AgentBase {
     
     private String buildTextResultFromParts(List<Part<?>> parts) {
         StringBuilder resultMsg = new StringBuilder();
+        // TODO current only support text type.
         parts.forEach(part -> {
             if (Part.Kind.TEXT.equals(part.getKind())) {
                 resultMsg.append(((TextPart) part).getText());
@@ -249,11 +253,12 @@ public class A2aAgent extends AgentBase {
                 currentTaskId = UUID.randomUUID().toString();
                 a2aClient = buildA2aClient(preCallEvent.getAgent().getName());
                 LoggerUtil.debug(log, "[{}] A2aAgent build A2a Client with Agent Card: {}.", currentTaskId,
-                        a2aClient.getAgentCard());
-            } else if (event instanceof PostCallEvent || event instanceof ErrorEvent) {
-                a2aClient.close();
-                a2aClient = null;
-                LoggerUtil.debug(log, "[{}] A2aAgent close A2a Client.", currentTaskId);
+                        a2aAgentConfig.agentCardProducer().produce(getName()));
+            } else if (event instanceof PostCallEvent) {
+                tryCloseA2aClient();
+            } else if (event instanceof ErrorEvent errorEvent) {
+                tryCloseA2aClient();
+                LoggerUtil.error(log, "[{}] A2aAgent execute error.", currentTaskId, errorEvent.getError());
             }
             return Mono.just(event);
         }
@@ -261,6 +266,14 @@ public class A2aAgent extends AgentBase {
         @Override
         public int priority() {
             return Integer.MAX_VALUE;
+        }
+        
+        private void tryCloseA2aClient() {
+            if (null != a2aClient) {
+                a2aClient.close();
+                a2aClient = null;
+                LoggerUtil.debug(log, "[{}] A2aAgent close A2a Client.", currentTaskId);
+            }
         }
     }
 }
