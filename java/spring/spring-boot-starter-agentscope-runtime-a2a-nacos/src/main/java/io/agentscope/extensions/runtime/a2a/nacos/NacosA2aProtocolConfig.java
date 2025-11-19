@@ -41,9 +41,11 @@ public class NacosA2aProtocolConfig extends A2aProtocolConfig {
             String documentationUrl, List<String> defaultInputModes, List<String> defaultOutputModes,
             List<AgentSkill> skills, boolean supportsAuthenticatedExtendedCard,
             Map<String, SecurityScheme> securitySchemes, List<Map<String, List<String>>> security, String iconUrl,
-            List<AgentInterface> additionalInterfaces, Properties nacosProperties, boolean registerAsLatest) {
+            List<AgentInterface> additionalInterfaces, String preferredTransport, Properties nacosProperties,
+            boolean registerAsLatest) {
         super(name, description, url, provider, version, documentationUrl, defaultInputModes, defaultOutputModes,
-                skills, supportsAuthenticatedExtendedCard, securitySchemes, security, iconUrl, additionalInterfaces);
+                skills, supportsAuthenticatedExtendedCard, securitySchemes, security, iconUrl, additionalInterfaces,
+                preferredTransport);
         this.nacosProperties = nacosProperties;
         this.registerAsLatest = registerAsLatest;
     }
@@ -142,6 +144,11 @@ public class NacosA2aProtocolConfig extends A2aProtocolConfig {
             return this;
         }
         
+        public Builder preferredTransport(String preferredTransport) {
+            this.preferredTransport = preferredTransport;
+            return this;
+        }
+        
         @Override
         public A2aProtocolConfig build() {
             if (null == nacosProperties) {
@@ -149,7 +156,7 @@ public class NacosA2aProtocolConfig extends A2aProtocolConfig {
             }
             return new NacosA2aProtocolConfig(name, description, url, provider, version, documentationUrl,
                     defaultInputModes, defaultOutputModes, skills, supportsAuthenticatedExtendedCard, securitySchemes,
-                    security, iconUrl, additionalInterfaces, nacosProperties, registerAsLatest);
+                    security, iconUrl, additionalInterfaces, preferredTransport, nacosProperties, registerAsLatest);
         }
     }
 }
