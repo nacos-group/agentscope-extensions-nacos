@@ -24,9 +24,7 @@ import io.a2a.client.transport.jsonrpc.JSONRPCTransportConfig;
 import io.a2a.spec.A2AClientException;
 import io.a2a.spec.AgentCard;
 import io.a2a.spec.Message;
-import io.a2a.spec.Part;
 import io.a2a.spec.TaskIdParams;
-import io.a2a.spec.TextPart;
 import io.agentscope.core.agent.AgentBase;
 import io.agentscope.core.hook.ErrorEvent;
 import io.agentscope.core.hook.Hook;
@@ -34,7 +32,6 @@ import io.agentscope.core.hook.HookEvent;
 import io.agentscope.core.hook.PostCallEvent;
 import io.agentscope.core.hook.PreCallEvent;
 import io.agentscope.core.interruption.InterruptContext;
-import io.agentscope.core.message.ContentBlock;
 import io.agentscope.core.message.Msg;
 import io.agentscope.core.message.TextBlock;
 import io.agentscope.extensions.a2a.agent.card.AgentCardProducer;
@@ -42,15 +39,14 @@ import io.agentscope.extensions.a2a.agent.event.ClientEventContext;
 import io.agentscope.extensions.a2a.agent.event.ClientEventHandlerRouter;
 import io.agentscope.extensions.a2a.agent.utils.DateTimeSerializationUtil;
 import io.agentscope.extensions.a2a.agent.utils.LoggerUtil;
+import io.agentscope.extensions.a2a.agent.utils.MessageConvertUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
 
 /**
  * The implementation of Agent for A2A(Agent2Agent).
@@ -122,9 +118,8 @@ public class A2aAgent extends AgentBase {
         registerState("taskId", obj -> currentTaskId, obj -> obj);
         clientEventContext.setHooks(getSortedHooks());
         return Mono.defer(() -> {
-            List<Part<?>> messageParts = msgs.stream().map(this::msgToParts).flatMap(Collection::stream).toList();
-            Message message = new Message.Builder().taskId(currentTaskId).role(Message.Role.USER).parts(messageParts)
-                    .build();
+            Message message = MessageConvertUtil.convertFromMsg(msgs);
+            message.setTaskId(currentTaskId);
             return checkInterruptedAsync().then(doExecute(message));
         });
     }
@@ -183,17 +178,6 @@ public class A2aAgent extends AgentBase {
             };
             a2aClient.sendMessage(message, List.of(a2aEventConsumer), sink::error);
         });
-    }
-    
-    private List<Part<?>> msgToParts(Msg msg) {
-        return msg.getContent().stream().filter(block -> block instanceof TextBlock)
-                .map((Function<ContentBlock, Part<?>>) this::extractTextMsgContent).toList();
-    }
-    
-    private Part<?> extractTextMsgContent(ContentBlock contentBlock) {
-        TextBlock textBlock = (TextBlock) contentBlock;
-        String msgContent = textBlock.getText();
-        return new TextPart(msgContent);
     }
     
     private class A2aClientLifecycleHook implements Hook {

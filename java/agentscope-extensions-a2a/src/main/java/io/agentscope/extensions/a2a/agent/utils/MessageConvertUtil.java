@@ -22,11 +22,14 @@ import io.a2a.spec.Part;
 import io.agentscope.core.message.ContentBlock;
 import io.agentscope.core.message.Msg;
 import io.agentscope.core.message.MsgRole;
+import io.agentscope.extensions.a2a.agent.message.ContentBlockParserRouter;
 import io.agentscope.extensions.a2a.agent.message.PartParserRouter;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -37,12 +40,26 @@ import java.util.Objects;
  */
 public class MessageConvertUtil {
     
-    private static final PartParserRouter partParser = new PartParserRouter();
+    private static final PartParserRouter PART_PARSER = new PartParserRouter();
     
+    private static final ContentBlockParserRouter CONTENT_BLOCK_PARSER = new ContentBlockParserRouter();
+    
+    /**
+     * Convert a single {@link io.a2a.spec.Artifact} to {@link io.agentscope.core.message.Msg}.
+     *
+     * @param artifact the artifact to convert
+     * @return the converted Msg object
+     */
     public static Msg convertFromArtifact(Artifact artifact) {
         return convertFromArtifact(List.of(artifact));
     }
     
+    /**
+     * Convert a list of {@link io.a2a.spec.Artifact} to {@link io.agentscope.core.message.Msg}.
+     *
+     * @param artifacts the list of artifacts to convert
+     * @return the converted Msg object
+     */
     public static Msg convertFromArtifact(List<Artifact> artifacts) {
         Msg.Builder builder = Msg.builder();
         List<ContentBlock> contentBlocks = new LinkedList<>();
@@ -58,10 +75,22 @@ public class MessageConvertUtil {
         return builder.build();
     }
     
+    /**
+     * Convert a single {@link io.a2a.spec.Message} to {@link io.agentscope.core.message.Msg}.
+     *
+     * @param message the message to convert
+     * @return the converted Msg object
+     */
     public static Msg convertFromMessage(Message message) {
         return convertFromMessage(List.of(message));
     }
     
+    /**
+     * Convert a list of {@link io.a2a.spec.Message} to {@link io.agentscope.core.message.Msg}.
+     *
+     * @param messages the list of messages to convert
+     * @return the converted Msg object
+     */
     public static Msg convertFromMessage(List<Message> messages) {
         Msg.Builder builder = Msg.builder();
         List<ContentBlock> contentBlocks = new LinkedList<>();
@@ -76,11 +105,28 @@ public class MessageConvertUtil {
         return builder.build();
     }
     
+    /**
+     * Convert a list of {@link io.agentscope.core.message.Msg} to {@link io.a2a.spec.Message}.
+     *
+     * @param msgs the list of Msg to convert
+     * @return the converted Message object
+     */
+    public static Message convertFromMsg(List<Msg> msgs) {
+        Message.Builder builder = new Message.Builder();
+        Map<String, Object> metadata = new HashMap<>();
+        List<Part<?>> parts = new LinkedList<>();
+        msgs.stream().filter(Objects::nonNull).filter(msg -> isNotEmptyCollection(msg.getContent())).forEach(msg -> {
+            metadata.putAll(msg.getMetadata());
+            parts.addAll(msg.getContent().stream().map(CONTENT_BLOCK_PARSER::parse).filter(Objects::nonNull).toList());
+        });
+        return builder.parts(parts).metadata(metadata).build();
+    }
+    
     private static boolean isNotEmptyCollection(Collection<?> collection) {
         return null != collection && !collection.isEmpty();
     }
     
     private static List<ContentBlock> convertFromParts(List<Part<?>> parts) {
-        return parts.stream().map(partParser::parse).filter(Objects::nonNull).toList();
+        return parts.stream().map(PART_PARSER::parse).filter(Objects::nonNull).toList();
     }
 }
