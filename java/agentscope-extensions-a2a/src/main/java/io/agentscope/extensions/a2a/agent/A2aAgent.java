@@ -19,38 +19,32 @@ package io.agentscope.extensions.a2a.agent;
 import io.a2a.client.Client;
 import io.a2a.client.ClientBuilder;
 import io.a2a.client.ClientEvent;
-import io.a2a.client.TaskUpdateEvent;
 import io.a2a.client.transport.jsonrpc.JSONRPCTransport;
 import io.a2a.client.transport.jsonrpc.JSONRPCTransportConfig;
 import io.a2a.spec.A2AClientException;
 import io.a2a.spec.AgentCard;
-import io.a2a.spec.Artifact;
 import io.a2a.spec.Message;
 import io.a2a.spec.Part;
 import io.a2a.spec.TaskIdParams;
-import io.a2a.spec.TaskStatus;
-import io.a2a.spec.TaskStatusUpdateEvent;
 import io.a2a.spec.TextPart;
-import io.a2a.spec.UpdateEvent;
 import io.agentscope.core.agent.AgentBase;
 import io.agentscope.core.hook.ErrorEvent;
 import io.agentscope.core.hook.Hook;
 import io.agentscope.core.hook.HookEvent;
 import io.agentscope.core.hook.PostCallEvent;
 import io.agentscope.core.hook.PreCallEvent;
-import io.agentscope.core.hook.ReasoningChunkEvent;
 import io.agentscope.core.interruption.InterruptContext;
 import io.agentscope.core.message.ContentBlock;
 import io.agentscope.core.message.Msg;
-import io.agentscope.core.message.MsgRole;
 import io.agentscope.core.message.TextBlock;
 import io.agentscope.extensions.a2a.agent.card.AgentCardProducer;
+import io.agentscope.extensions.a2a.agent.event.ClientEventContext;
+import io.agentscope.extensions.a2a.agent.event.ClientEventHandlerRouter;
 import io.agentscope.extensions.a2a.agent.utils.DateTimeSerializationUtil;
 import io.agentscope.extensions.a2a.agent.utils.LoggerUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.MonoSink;
 
 import java.util.Collection;
 import java.util.List;
@@ -83,12 +77,19 @@ public class A2aAgent extends AgentBase {
     
     private final A2aAgentConfig a2aAgentConfig;
     
+    private final ClientEventHandlerRouter clientEventHandlerRouter;
+    
     private Client a2aClient;
     
     /**
      * According to the design, one agent should not be call with multiple threads and tasks at the same time.
      */
     private String currentTaskId;
+    
+    /**
+     * The context of client event, one agent should not be call with multiple threads and tasks at the same time.
+     */
+    private ClientEventContext clientEventContext;
     
     public A2aAgent(String name, AgentCard agentCard) {
         this(name, new A2aAgentConfig.A2aAgentConfigBuilder().agentCard(agentCard).build());
@@ -110,6 +111,7 @@ public class A2aAgent extends AgentBase {
         if (a2aAgentConfig.adaptOldVersionA2aDateTimeSerialization()) {
             DateTimeSerializationUtil.adaptOldVersionA2aDateTimeSerialization();
         }
+        this.clientEventHandlerRouter = new ClientEventHandlerRouter();
     }
     
     @Override
@@ -118,6 +120,7 @@ public class A2aAgent extends AgentBase {
         LoggerUtil.debug(log, "[{}] A2aAgent call with input messages: ", currentTaskId);
         LoggerUtil.logTextMsgDetail(log, msgs);
         registerState("taskId", obj -> currentTaskId, obj -> obj);
+        clientEventContext.setHooks(getSortedHooks());
         return Mono.defer(() -> {
             List<Part<?>> messageParts = msgs.stream().map(this::msgToParts).flatMap(Collection::stream).toList();
             Message message = new Message.Builder().taskId(currentTaskId).role(Message.Role.USER).parts(messageParts)
@@ -171,67 +174,15 @@ public class A2aAgent extends AgentBase {
     
     private Mono<Msg> doExecute(Message message) {
         return Mono.create(sink -> {
+            clientEventContext.setSink(sink);
             BiConsumer<ClientEvent, AgentCard> a2aEventConsumer = (event, agentCard) -> {
                 LoggerUtil.trace(log, "[{}] A2aAgent receive event {}: ", currentTaskId,
                         event.getClass().getSimpleName());
                 LoggerUtil.logA2aClientEventDetail(log, event);
-                if (event instanceof TaskUpdateEvent taskUpdateEvent) {
-                    handleTaskUpdateEvent(sink, taskUpdateEvent);
-                }
+                clientEventHandlerRouter.handle(event, clientEventContext);
             };
             a2aClient.sendMessage(message, List.of(a2aEventConsumer), sink::error);
         });
-    }
-    
-    private void handleTaskUpdateEvent(MonoSink<Msg> sink, TaskUpdateEvent taskUpdateEvent) {
-        if (isTaskFinished(taskUpdateEvent.getUpdateEvent())) {
-            Msg msg = buildMsgFromArtifact(taskUpdateEvent.getTask().getArtifacts());
-            sink.success(msg);
-            LoggerUtil.info(log, "[{}] A2aAgent complete call.", currentTaskId);
-            LoggerUtil.debug(log, "[{}] A2aAgent complete with artifact messages: ", currentTaskId);
-            LoggerUtil.logTextMsgDetail(log, List.of(msg));
-        } else {
-            if (taskUpdateEvent.getUpdateEvent() instanceof TaskStatusUpdateEvent) {
-                TaskStatus taskStatus = taskUpdateEvent.getTask().getStatus();
-                if (null == taskStatus.message()) {
-                    return;
-                }
-                Msg msg = buildMsgFromParts(taskStatus.message().getParts());
-                LoggerUtil.debug(log, "[{}] A2aAgent task status updated with messages: ", currentTaskId);
-                LoggerUtil.logTextMsgDetail(log, List.of(msg));
-                ReasoningChunkEvent event = new ReasoningChunkEvent(this, "A2A", null, msg, msg);
-                getSortedHooks().forEach(hook -> hook.onEvent(event).block());
-            }
-        }
-    }
-    
-    private boolean isTaskFinished(UpdateEvent updateEvent) {
-        return updateEvent instanceof TaskStatusUpdateEvent taskStatusUpdateEvent && taskStatusUpdateEvent.isFinal();
-    }
-    
-    private Msg buildMsgFromArtifact(List<Artifact> artifacts) {
-        StringBuilder resultArtifact = new StringBuilder();
-        for (Artifact each : artifacts) {
-            resultArtifact.append(buildTextResultFromParts(each.parts()));
-        }
-        return Msg.builder().role(MsgRole.ASSISTANT)
-                .content(TextBlock.builder().text(resultArtifact.toString()).build()).build();
-    }
-    
-    private Msg buildMsgFromParts(List<Part<?>> parts) {
-        return Msg.builder().role(MsgRole.ASSISTANT)
-                .content(TextBlock.builder().text(buildTextResultFromParts(parts)).build()).build();
-    }
-    
-    private String buildTextResultFromParts(List<Part<?>> parts) {
-        StringBuilder resultMsg = new StringBuilder();
-        // TODO current only support text type.
-        parts.forEach(part -> {
-            if (Part.Kind.TEXT.equals(part.getKind())) {
-                resultMsg.append(((TextPart) part).getText());
-            }
-        });
-        return resultMsg.toString();
     }
     
     private List<Part<?>> msgToParts(Msg msg) {
@@ -251,13 +202,14 @@ public class A2aAgent extends AgentBase {
         public <T extends HookEvent> Mono<T> onEvent(T event) {
             if (event instanceof PreCallEvent preCallEvent) {
                 currentTaskId = UUID.randomUUID().toString();
+                clientEventContext = new ClientEventContext(currentTaskId, A2aAgent.this);
                 a2aClient = buildA2aClient(preCallEvent.getAgent().getName());
                 LoggerUtil.debug(log, "[{}] A2aAgent build A2a Client with Agent Card: {}.", currentTaskId,
                         a2aAgentConfig.agentCardProducer().produce(getName()));
             } else if (event instanceof PostCallEvent) {
-                tryCloseA2aClient();
+                tryReleaseResource();
             } else if (event instanceof ErrorEvent errorEvent) {
-                tryCloseA2aClient();
+                tryReleaseResource();
                 LoggerUtil.error(log, "[{}] A2aAgent execute error.", currentTaskId, errorEvent.getError());
             }
             return Mono.just(event);
@@ -268,7 +220,8 @@ public class A2aAgent extends AgentBase {
             return Integer.MAX_VALUE;
         }
         
-        private void tryCloseA2aClient() {
+        private void tryReleaseResource() {
+            clientEventContext = null;
             if (null != a2aClient) {
                 a2aClient.close();
                 a2aClient = null;
