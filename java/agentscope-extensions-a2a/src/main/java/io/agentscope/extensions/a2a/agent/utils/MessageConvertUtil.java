@@ -97,7 +97,7 @@ public class MessageConvertUtil {
         messages.stream().filter(Objects::nonNull).filter(message -> isNotEmptyCollection(message.getParts()))
                 .forEach(message -> {
                     builder.id(message.getMessageId());
-                    builder.metadata(message.getMetadata());
+                    builder.metadata(null != message.getMetadata() ? message.getMetadata() : Map.of());
                     contentBlocks.addAll(convertFromParts(message.getParts()));
                 });
         builder.role(MsgRole.ASSISTANT);
@@ -116,10 +116,10 @@ public class MessageConvertUtil {
         Map<String, Object> metadata = new HashMap<>();
         List<Part<?>> parts = new LinkedList<>();
         msgs.stream().filter(Objects::nonNull).filter(msg -> isNotEmptyCollection(msg.getContent())).forEach(msg -> {
-            metadata.putAll(msg.getMetadata());
+            metadata.putAll(null != msg.getMetadata() ? msg.getMetadata() : Map.of());
             parts.addAll(msg.getContent().stream().map(CONTENT_BLOCK_PARSER::parse).filter(Objects::nonNull).toList());
         });
-        return builder.parts(parts).metadata(metadata).build();
+        return builder.parts(parts).metadata(metadata).role(Message.Role.USER).build();
     }
     
     private static boolean isNotEmptyCollection(Collection<?> collection) {
