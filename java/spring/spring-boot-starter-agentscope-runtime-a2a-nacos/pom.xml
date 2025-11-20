@@ -29,6 +29,21 @@
     <artifactId>spring-boot-starter-agentscope-runtime-a2a-nacos</artifactId>
     <name>Spring Boot Starter for AgentScope Runtime Extensions A2A Nacos</name>
     <description>AgentScope Runtime Extensions A2A Nacos Registry - Spring Boot Starter</description>
+    <url>https://github.com/nacos-group/agentscope-extensions-nacos</url>
+    <scm>
+        <connection>git@github.com:nacos-group/agentscope-extensions-nacos.git</connection>
+        <developerConnection>git@github.com:nacos-group/agentscope-extensions-nacos.git</developerConnection>
+        <url>https://github.com/nacos-group/agentscope-extensions-nacos</url>
+    </scm>
+    <developers>
+        <developer>
+            <id>KomachiSion</id>
+            <name>Yi Yang</name>
+            <email>yangyi@apache.org</email>
+            <organization>Alibaba Cloud</organization>
+            <organizationUrl>https://aliyun.com</organizationUrl>
+        </developer>
+    </developers>
     
     <dependencies>
         <dependency>

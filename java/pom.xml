@@ -27,6 +27,33 @@
     
     <name>AgentScope Extensions Nacos Java</name>
     <description>AgentScope extensions component for Nacos - Java</description>
+    <url>https://github.com/nacos-group/agentscope-extensions-nacos</url>
+    <organization>
+        <name>Alibaba Cloud Inc.</name>
+        <url>https://nacos.io</url>
+    </organization>
+    <licenses>
+        <license>
+            <name>Apache 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+    <scm>
+        <connection>git@github.com:nacos-group/agentscope-extensions-nacos.git</connection>
+        <developerConnection>git@github.com:nacos-group/agentscope-extensions-nacos.git</developerConnection>
+        <url>https://github.com/nacos-group/agentscope-extensions-nacos</url>
+    </scm>
+    <developers>
+        <developer>
+            <id>KomachiSion</id>
+            <name>Yi Yang</name>
+            <email>yangyi@apache.org</email>
+            <organization>Alibaba Cloud</organization>
+            <organizationUrl>https://aliyun.com</organizationUrl>
+        </developer>
+    </developers>
+    
     <modules>
         <module>agentscope-extensions-a2a</module>
         <module>agentscope-extensions-a2a-nacos</module>
@@ -57,6 +84,8 @@
         <maven-surefire-plugin.version>3.2.5</maven-surefire-plugin.version>
         <maven-flatten-plugin.version>1.7.3</maven-flatten-plugin.version>
         <maven-gpg-plugin.version>3.2.7</maven-gpg-plugin.version>
+        <maven-source-plugin.version>3.3.0</maven-source-plugin.version>
+        <maven-javadoc-plugin.version>3.5.0</maven-javadoc-plugin.version>
         <apache-rat-plugin.version>0.17</apache-rat-plugin.version>
         <central-publishing-maven.version>0.9.0</central-publishing-maven.version>
     </properties>
@@ -235,9 +264,34 @@
                 </executions>
             </plugin>
             <plugin>
-                <groupId>org.sonatype.central</groupId>
-                <artifactId>central-publishing-maven-plugin</artifactId>
-                <version>${central-publishing-maven.version}</version>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>${maven-javadoc-plugin.version}</version>
+                <configuration>
+                    <doclint>all,-missing</doclint>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <phase>package</phase>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <version>${maven-source-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>generate-sources</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <phase>package</phase>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
@@ -258,6 +312,15 @@
             
             <build>
                 <plugins>
+                    <plugin>
+                        <groupId>org.sonatype.central</groupId>
+                        <artifactId>central-publishing-maven-plugin</artifactId>
+                        <version>${central-publishing-maven.version}</version>
+                        <extensions>true</extensions>
+                        <configuration>
+                            <publishingServerId>central</publishingServerId>
+                        </configuration>
+                    </plugin>
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-gpg-plugin</artifactId>

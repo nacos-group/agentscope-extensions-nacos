@@ -46,7 +46,7 @@ import java.util.stream.Collectors;
  *
  * @author xiweng.yy
  * @see NacosMcpClientBuilder
- * @see #refresh(McpServerDetailInfo).
+ * @see #refresh(McpServerDetailInfo)
  */
 public class NacosMcpClientWrapper extends McpClientWrapper {
     
