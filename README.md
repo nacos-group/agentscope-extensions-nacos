@@ -8,54 +8,45 @@ This project provides integration between AgentScope and Nacos service discovery
 ```
 agentscope-extensions-nacos/
 ├── java/                                                           # Java Implementation (Maven)
-│   ├── agentscope-extensions-a2a                                   # AgentScope Extension For A2A(Agent2Agent) Protocol Request
-│   ├── agentscope-extensions-a2a-nacos                             # AgentScope Extension For A2A(Agent2Agent) Protocol Registry with Nacos (Discovery&Register)
-│   ├── agentscope-extensions-mcp-nacos                             # AgentScope Extension For MCP Protocol Registry with Nacos (Discovery)
-│   ├── example                                                     # Example for AgentScope Extension For Java Implementation
-│   │   └── a2a-example                                             # Example for AgentScope Extension For A2A(Agent2Agent) Protocol with Nacos Regsitry
+│   ├── agentscope-extensions-a2a                                   # Source Code of AgentScope Extension For A2A(Agent2Agent) Protocol Request
+│   ├── agentscope-extensions-a2a-nacos                             # Source Code of AgentScope Extension For A2A(Agent2Agent) Protocol Registry with Nacos (Discovery&Register)
+│   ├── agentscope-extensions-mcp-nacos                             # Source Code of AgentScope Extension For MCP Protocol Registry with Nacos (Discovery)
+│   ├── example                                                     # Example for AgentScope Extension Java Implementation
+│   │   ├── a2a-example                                             # Example for AgentScope Extension A2A(Agent2Agent) Protocol with Nacos Regsitry
+│   │   └── mcp-example                                             # Example for AgentScope Extension MCP Protocol with Nacos Regsitry
 │   └── spring                                                      # AgentScope Extension For Spring Framework
-│       └── spring-boot-starter-agentscope-runtime-a2a-nacos        # Spring Boot Starter for AgentScope Runtime Extension to Auto Register A2A Protocol to Nacos.
+│       └── spring-boot-starter-agentscope-runtime-a2a-nacos        # Source Code of Spring Boot Starter for AgentScope Runtime Extension to Auto Register A2A Protocol to Nacos.
 └── python/                                                         # Python Implementation
-    ├── setup.py
-    ├── agentscope_nacos/
-    └── tests/
+    ├── setup.py                                                    # AgentScope Extension Python Implementation setup script
+    ├── agentscope_nacos/                                           # Source Code of AgentScope Extension Python Implementation
+    ├── example/                                                    # Example for AgentScope Extension Python Implementation
+    └── tests/                                                      # Tests for AgentScope Extension Python Implementation
 ```
 
 ## Java
 
-The Java SDK is built with Maven and provides Nacos integration for Java-based AgentScope applications.
+The Java implementation provides seamless integration between AgentScope and Nacos service discovery. It enables automatic registration and discovery of agents using the A2A (Agent-to-Agent) and MCP (Model Context Protocol) protocols through Nacos.
 
-### Building
+Key features:
+- A2A protocol support for agent-to-agent communication
+- MCP protocol integration for model context operations
+- Nacos service discovery for automatic agent registration and discovery
+- Spring Boot starter for easy integration with Spring applications
+- Examples demonstrating both A2A and MCP protocol usage with Nacos
 
-```bash
-cd java
-mvn clean install
-```
-
-### Testing
-
-```bash
-cd java
-mvn test
-```
+For detailed information about the Java implementation, please see [Java README](java/README.md).
 
 ## Python
 
-The Python SDK provides Nacos integration for Python-based AgentScope applications.
+The Python implementation offers Nacos integration for Python-based AgentScope applications. It provides essential functionality for registering and discovering agents in Nacos service registry.
 
-### Installation
+Key features:
+- Easy integration with AgentScope Python framework
+- Nacos service discovery for agent registration and lookup
+- Simple API for common Nacos operations
+- Examples demonstrating usage patterns
 
-```bash
-cd python
-pip install -e .
-```
-
-### Testing
-
-```bash
-cd python
-python -m unittest discover -s tests
-```
+For detailed information about the Python implementation, please see [Python README](python/README.md).
 
 ## Development
 
