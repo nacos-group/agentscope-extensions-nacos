@@ -225,10 +225,10 @@ class A2aAgent(AgentBase):
 		>>> response = await agent.reply(msg)
 	"""
 
-	def __init__(self, agent_card_source: Union[AgentCard, str] | None,
+	def __init__(self, agent_card_source: Union[AgentCard, str] | None = None,
 			httpx_client: Optional[httpx.AsyncClient] = None,
 			a2a_client_factory: Optional[A2AClientFactory] = None,
-			agent_card_resolver: A2ACardResolver | None = None,
+			agent_card_resolver: A2ACardResolverBase | None = None,
 			agent_name: Optional[str] = None):
 		super().__init__()
 
@@ -420,18 +420,27 @@ class A2aAgent(AgentBase):
 	async def reply(self,
         msg: Msg | list[Msg] | None = None,
         structured_model: Type[BaseModel] | None = None,) -> Msg:
-		"""Process message and return response from remote A2A agent.
+		"""Process message(s) and return response from remote A2A agent.
 		
 		This method handles the complete message exchange lifecycle:
 		1. Initialize agent if needed
-		2. Convert AgentScope message to A2A format
+		2. Convert AgentScope message(s) to A2A format (merging if list)
 		3. Attach session context (task_id, context_id)
 		4. Send message to remote agent
 		5. Process response (handle both Message and Task responses)
 		6. Convert A2A response back to AgentScope format
 		
+		Message Processing (Phase 1 - Aligned with Java implementation):
+		- Accepts single message or list of messages
+		- Merges all messages into a single A2A message
+		- Combines content parts from all messages
+		- Merges metadata from all messages
+		- Filters out None/empty messages
+		
 		Args:
-			msg: Input message (single Msg or list of Msg)
+			msg: Input message (single Msg or list of Msg). If a list is provided,
+				all messages will be merged into a single A2A message with combined
+				content and metadata.
 			structured_model: Optional structured output model (not yet supported)
 			
 		Returns:
@@ -439,25 +448,34 @@ class A2aAgent(AgentBase):
 			
 		Raises:
 			RuntimeError: If remote service returns error or task fails
-			ValueError: If message format is invalid
+			ValueError: If message format is invalid or all messages are None/empty
 		"""
 		# 1. Ensure agent is initialized
 		await self._ensure_initialized()
 		
-		# 2. Preprocess message
+		# 2. Preprocess message - normalize to list format
 		if msg is None:
 			raise ValueError("msg cannot be None")
 		
-		if isinstance(msg, list):
-			# If list, take the last message
-			if len(msg) == 0:
-				raise ValueError("msg list cannot be empty")
-			msg = msg[-1]
+		# Normalize to list for unified processing
+		msgs_list = [msg] if isinstance(msg, Msg) else msg
 		
-		logger.debug(f"[{self.__class__.__name__}] Processing message from {msg.get('name', 'user')}")
+		if len(msgs_list) == 0:
+			raise ValueError("msg list cannot be empty")
 		
-		# 3. Convert to A2A Message format
-		a2a_message = self._convert_msg_to_a2a_message(msg)
+		# Filter out None values
+		msgs_list = [m for m in msgs_list if m is not None]
+		
+		if not msgs_list:
+			raise ValueError("All messages in list are None")
+		
+		logger.debug(
+			f"[{self.__class__.__name__}] Processing {len(msgs_list)} message(s) "
+			f"for A2A conversion"
+		)
+		
+		# 3. Convert to A2A Message format - process entire list
+		a2a_message = self._convert_msgs_to_a2a_message(msgs_list)
 		
 		# 4. Attach session context for multi-turn conversation
 		if self._current_task_id:
@@ -537,11 +555,128 @@ class A2aAgent(AgentBase):
 		await self.print(response_msg, True)
 		return response_msg
 	
-	def _convert_msg_to_a2a_message(self, msg: Msg) -> A2AMessage:
-		"""Convert AgentScope Msg to A2A Message format.
+	def _convert_content_block_to_part(self, block: Any) -> Part | None:
+		"""Convert AgentScope ContentBlock to A2A Part.
 		
-		Extracts text content from AgentScope message and creates an A2A
-		protocol-compliant message with appropriate role mapping.
+		Supports various content types and converts them to A2A protocol parts.
+		Currently supports text blocks, with framework for future expansion.
+		
+		Args:
+			block: ContentBlock object from AgentScope message
+			
+		Returns:
+			Part | None: A2A Part object, or None if block is empty/unsupported
+			
+		Note:
+			Future support for ImagePart, FilePart, etc. can be added here.
+		"""
+		# Get block type
+		block_type = getattr(block, 'type', None)
+		
+		if block_type == "text":
+			# Extract text content
+			text = getattr(block, 'text', '')
+			if text and text.strip():
+				return Part(root=TextPart(text=text))
+		
+		elif block_type == "image":
+			# TODO: Add ImagePart support when A2A types are ready
+			logger.warning(
+				f"[{self.__class__.__name__}] Image content block not yet "
+				"supported in A2A conversion"
+			)
+			return None
+		
+		elif block_type == "file":
+			# TODO: Add FilePart support when A2A types are ready
+			logger.warning(
+				f"[{self.__class__.__name__}] File content block not yet "
+				"supported in A2A conversion"
+			)
+			return None
+		
+		# Unknown or unsupported block type
+		if block_type:
+			logger.debug(
+				f"[{self.__class__.__name__}] Unsupported content block type: "
+				f"{block_type}"
+			)
+		
+		return None
+	
+	def _convert_msgs_to_a2a_message(self, msgs: list[Msg]) -> A2AMessage:
+		"""Convert list of AgentScope Msgs to single A2A Message.
+		
+		Merges multiple messages into a single A2A protocol message by:
+		1. Combining all content parts from all messages
+		2. Merging all metadata dictionaries
+		3. Filtering out None/empty messages
+		4. Supporting multimodal content (text, images, etc.)
+		
+		This aligns with the Java implementation which processes entire message lists.
+		
+		Args:
+			msgs: List of AgentScope message objects
+			
+		Returns:
+			A2AMessage: Single A2A protocol message with merged content
+			
+		Raises:
+			ValueError: If all messages are None or empty
+		"""
+		merged_parts = []
+		merged_metadata = {}
+		
+		# Process all messages
+		for msg in msgs:
+			if msg is None:
+				continue
+			
+			# Merge metadata from this message
+			if msg.metadata:
+				merged_metadata.update(msg.metadata)
+			
+			# Process message content
+			if isinstance(msg.content, str):
+				# Simple string content
+				if msg.content.strip():  # Filter empty strings
+					merged_parts.append(Part(root=TextPart(text=msg.content)))
+			
+			elif isinstance(msg.content, list):
+				# ContentBlock list - process all types
+				for block in msg.content:
+					part = self._convert_content_block_to_part(block)
+					if part:  # Filter None results
+						merged_parts.append(part)
+		
+		# If no parts were extracted, add empty text part
+		if not merged_parts:
+			merged_parts.append(Part(root=TextPart(text="")))
+			logger.debug(
+				f"[{self.__class__.__name__}] No valid content found in messages, "
+				"using empty text part"
+			)
+		
+		# Build A2A Message with merged content
+		a2a_message = A2AMessage(
+			message_id=str(uuid4()),
+			role=A2ARole.user,
+			parts=merged_parts,
+			metadata=merged_metadata if merged_metadata else None,
+		)
+		
+		logger.debug(
+			f"[{self.__class__.__name__}] Merged {len(msgs)} message(s) into "
+			f"A2A message with {len(merged_parts)} part(s)"
+		)
+		
+		return a2a_message
+	
+	def _convert_msg_to_a2a_message(self, msg: Msg) -> A2AMessage:
+		"""Convert single AgentScope Msg to A2A Message format.
+		
+		This is a convenience method that wraps _convert_msgs_to_a2a_message
+		for backward compatibility and single message use cases.
 		
 		Args:
 			msg: AgentScope message object
@@ -549,37 +684,7 @@ class A2aAgent(AgentBase):
 		Returns:
 			A2AMessage: A2A protocol message object
 		"""
-		# 提取文本内容
-		if isinstance(msg.content, str):
-			text_content = msg.content
-		else:
-			# content 是 list[ContentBlock]
-			text_blocks = msg.get_content_blocks("text")
-			if text_blocks:
-				text_content = " ".join([block.get("text", "") for block in text_blocks])
-			else:
-				text_content = ""
-		
-		# 角色映射：AgentScope -> A2A
-		# "user" | "system" -> Role.user
-		# "assistant" -> Role.agent
-		if msg.role in ["user", "system"]:
-			a2a_role = A2ARole.user
-		elif msg.role == "assistant":
-			a2a_role = A2ARole.agent
-		else:
-			# 默认使用 user
-			a2a_role = A2ARole.user
-		
-		# 构建 A2A Message
-		a2a_message = A2AMessage(
-			message_id=str(uuid4()),
-			role=a2a_role,
-			parts=[Part(root=TextPart(text=text_content))],
-			metadata=msg.metadata if msg.metadata else None,
-		)
-		
-		return a2a_message
+		return self._convert_msgs_to_a2a_message([msg])
 	
 	def _convert_a2a_message_to_msg(self, a2a_msg: A2AMessage) -> Msg:
 		"""

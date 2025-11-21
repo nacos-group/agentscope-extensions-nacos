@@ -19,10 +19,9 @@ import asyncio
 from agentscope.agent import UserAgent, UserInputBase, UserInputData
 from agentscope.message import TextBlock
 from v2.nacos import ClientConfigBuilder
-from agentscope_extension_nacos.a2a.a2a_agent import (
-    NacosA2ACardResolver,
-    A2aAgent,
-)
+from agentscope_extension_nacos.a2a.a2a_agent import A2aAgent
+from agentscope_extension_nacos.a2a.nacos.nacos_a2a_card_resolver import \
+    NacosA2ACardResolver
 from agentscope_extension_nacos.nacos_service_manager import NacosServiceManager
 
 
@@ -44,7 +43,7 @@ async def creating_react_agent() -> None:
     # Create Nacos Agent Card resolver
     # This will fetch the Agent Card from Nacos A2A Registry
     agent_card_resolver = NacosA2ACardResolver(
-        remote_agent_name="test-nacos-a2a-agent"
+        remote_agent_name="Friday"
     )
 
     # Create A2A agent with Nacos resolver
