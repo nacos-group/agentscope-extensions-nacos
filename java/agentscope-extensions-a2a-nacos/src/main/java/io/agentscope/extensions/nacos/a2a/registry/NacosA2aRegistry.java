@@ -28,6 +28,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Properties;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * AgentScope Extensions for Runtime Registry A2A AgentCard and A2A instance endpoint to Nacos.
@@ -77,10 +79,16 @@ public class NacosA2aRegistry {
         if (a2aProperties.transportProperties().isEmpty()) {
             return;
         }
-        // TODO should upgrade nacos-client upper 3.1.1 to support batch register multiple endpoints.
-        AgentEndpoint endpoint = buildAgentEndpoint(a2aProperties.transportProperties().values().iterator().next(),
-                agentCard.getVersion());
-        a2aService.registerAgentEndpoint(agentCard.getName(), endpoint);
+        if (a2aProperties.transportProperties().size() == 1) {
+            AgentEndpoint endpoint = buildAgentEndpoint(a2aProperties.transportProperties().values().iterator().next(),
+                    agentCard.getVersion());
+            a2aService.registerAgentEndpoint(agentCard.getName(), endpoint);
+        } else {
+            Set<AgentEndpoint> endpoints = a2aProperties.transportProperties().values().stream()
+                    .map(transportProperties -> buildAgentEndpoint(transportProperties, agentCard.getVersion()))
+                    .collect(Collectors.toSet());
+            a2aService.registerAgentEndpoint(agentCard.getName(), endpoints);
+        }
     }
     
     private AgentEndpoint buildAgentEndpoint(NacosA2aRegistryTransportProperties transportProperties, String version) {
@@ -91,7 +99,8 @@ public class NacosA2aRegistry {
         result.setPath(transportProperties.endpointPath());
         result.setSupportTls(transportProperties.isSupportTls());
         result.setVersion(version);
-        // TODO should upgrade nacos-client upper 3.1.1 to support Protocol and Query.
+        result.setProtocol(transportProperties.endpointProtocol());
+        result.setQuery(transportProperties.endpointQuery());
         return result;
     }
 }

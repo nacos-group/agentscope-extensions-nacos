@@ -71,7 +71,7 @@
         
         <agentscope.version>0.2.1</agentscope.version>
         <agentscope-runtime.version>0.1.2</agentscope-runtime.version>
-        <nacos.version>3.1.0</nacos.version>
+        <nacos.version>3.1.1</nacos.version>
         <a2a-java.version>0.3.2.Final</a2a-java.version>
         <mcp-java.version>0.14.1</mcp-java.version>
         <logback.version>1.5.20</logback.version>
