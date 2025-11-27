@@ -16,19 +16,23 @@
 
 package io.agentscope.extensions.runtime.a2a.nacos.properties;
 
+import io.agentscope.extensions.runtime.a2a.nacos.constant.Constants;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * A2a properties for Nacos A2A Registry.
  *
  * @author xiweng.yy
  */
-@ConfigurationProperties(prefix = NacosA2aProperties.PREFIX)
+@ConfigurationProperties(prefix = Constants.REGISTRY_PREFIX)
 public class NacosA2aProperties {
     
-    public static final String PREFIX = NacosServerProperties.PREFIX + ".registry";
-    
     private boolean registerAsLatest;
+    
+    private Map<String, NacosA2aTransportProperties> transports = new HashMap<>();
     
     public boolean isRegisterAsLatest() {
         return registerAsLatest;
@@ -36,5 +40,13 @@ public class NacosA2aProperties {
     
     public void setRegisterAsLatest(boolean registerAsLatest) {
         this.registerAsLatest = registerAsLatest;
+    }
+    
+    public Map<String, NacosA2aTransportProperties> getTransports() {
+        return transports;
+    }
+    
+    public void setTransports(Map<String, NacosA2aTransportProperties> transports) {
+        this.transports = transports;
     }
 }

@@ -16,11 +16,40 @@
 
 package io.agentscope.extensions.nacos.a2a.registry;
 
+import com.alibaba.nacos.api.ai.constant.AiConstants;
+
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * Properties for A2A AgentCard and Endpoint registry to Nacos.
  *
  * @author xiweng.yy
  */
-public record NacosA2aRegistryProperties(boolean isSetAsLatest, String endpointAddress, int endpointPort, String endpointPath) {
-
+public record NacosA2aRegistryProperties(boolean isSetAsLatest,
+                                         Map<String, NacosA2aRegistryTransportProperties> transportProperties) {
+    
+    public NacosA2aRegistryProperties(boolean isSetAsLatest) {
+        this(isSetAsLatest, new HashMap<>());
+    }
+    
+    /**
+     * For support old version which only support DEFAULT transport.
+     *
+     * @deprecated in 1.0.0, please use {@link NacosA2aRegistryTransportProperties#builder()} and
+     * {@link #addTransport(NacosA2aRegistryTransportProperties)}
+     */
+    @Deprecated
+    public NacosA2aRegistryProperties(boolean isSetAsLatest, String endpointAddress, int endpointPort,
+            String endpointPath) {
+        this(isSetAsLatest);
+        NacosA2aRegistryTransportProperties defaultJsonRpcTransport = NacosA2aRegistryTransportProperties.builder()
+                .endpointAddress(endpointAddress).endpointPort(endpointPort).endpointPath(endpointPath)
+                .transport(AiConstants.A2a.A2A_ENDPOINT_DEFAULT_TRANSPORT).build();
+        transportProperties.put(AiConstants.A2a.A2A_ENDPOINT_DEFAULT_TRANSPORT, defaultJsonRpcTransport);
+    }
+    
+    public void addTransport(NacosA2aRegistryTransportProperties transport) {
+        transportProperties.put(transport.transport(), transport);
+    }
 }

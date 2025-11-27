@@ -19,6 +19,7 @@ package io.agentscope.extensions.runtime.a2a.nacos.properties;
 import com.alibaba.nacos.api.PropertyKeyConst;
 import com.alibaba.nacos.common.utils.StringUtils;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import io.agentscope.extensions.runtime.a2a.nacos.constant.Constants;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.EnvironmentAware;
 import org.springframework.core.env.ConfigurableEnvironment;
@@ -41,12 +42,10 @@ import java.util.regex.Pattern;
  *
  * @author xiweng.yy
  */
-@ConfigurationProperties(prefix = NacosServerProperties.PREFIX)
+@ConfigurationProperties(prefix = Constants.NACOS_PREFIX)
 public class NacosServerProperties implements EnvironmentAware {
     
-    public static final String PREFIX = "spring.agentscope.runtime.a2a.nacos";
-    
-    public static final String DEFAULT_ADDRESS = "127.0.0.1:8848";
+    private static final String DEFAULT_ADDRESS = "127.0.0.1:8848";
     
     private static final Pattern PATTERN = Pattern.compile("-(\\w)");
     
@@ -154,7 +153,7 @@ public class NacosServerProperties implements EnvironmentAware {
             return;
         }
         ConfigurableEnvironment env = (ConfigurableEnvironment) environment;
-        Map<String, Object> properties = getSubProperties(env.getPropertySources(), env, PREFIX);
+        Map<String, Object> properties = getSubProperties(env.getPropertySources(), env, Constants.NACOS_PREFIX);
         properties.forEach((k, v) -> nacosConfigProperties.putIfAbsent(resolveKey(k), String.valueOf(v)));
     }
     

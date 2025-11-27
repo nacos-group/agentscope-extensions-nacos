@@ -20,6 +20,7 @@ import com.alibaba.nacos.api.ai.A2aService;
 import com.alibaba.nacos.api.ai.AiFactory;
 import com.alibaba.nacos.api.exception.NacosException;
 import io.agentscope.extensions.runtime.a2a.nacos.condition.NacosA2aProtocolConfigNonExistCondition;
+import io.agentscope.extensions.runtime.a2a.nacos.constant.Constants;
 import io.agentscope.extensions.runtime.a2a.nacos.properties.NacosA2aProperties;
 import io.agentscope.extensions.runtime.a2a.nacos.properties.NacosServerProperties;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -39,7 +40,7 @@ import org.springframework.context.annotation.Conditional;
  */
 @AutoConfiguration(before = NacosA2aRegistryAutoConfiguration.class)
 @EnableConfigurationProperties({NacosA2aProperties.class, NacosServerProperties.class})
-@ConditionalOnProperty(prefix = NacosA2aProperties.PREFIX, value = ".enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = Constants.NACOS_PREFIX, value = ".enabled", havingValue = "true", matchIfMissing = true)
 @Conditional(NacosA2aProtocolConfigNonExistCondition.class)
 public class NacosA2aPropertiesAutoConfiguration {
     
