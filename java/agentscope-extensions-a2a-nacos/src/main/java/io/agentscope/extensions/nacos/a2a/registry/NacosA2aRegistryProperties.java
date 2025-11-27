@@ -26,11 +26,11 @@ import java.util.Map;
  *
  * @author xiweng.yy
  */
-public record NacosA2aRegistryProperties(boolean isSetAsLatest,
+public record NacosA2aRegistryProperties(boolean isSetAsLatest, boolean enabledRegisterEndpoint,
                                          Map<String, NacosA2aRegistryTransportProperties> transportProperties) {
     
-    public NacosA2aRegistryProperties(boolean isSetAsLatest) {
-        this(isSetAsLatest, new HashMap<>());
+    public NacosA2aRegistryProperties(boolean isSetAsLatest, boolean enabledRegisterEndpoint) {
+        this(isSetAsLatest, enabledRegisterEndpoint, new HashMap<>());
     }
     
     /**
@@ -42,7 +42,7 @@ public record NacosA2aRegistryProperties(boolean isSetAsLatest,
     @Deprecated
     public NacosA2aRegistryProperties(boolean isSetAsLatest, String endpointAddress, int endpointPort,
             String endpointPath) {
-        this(isSetAsLatest);
+        this(isSetAsLatest, true);
         NacosA2aRegistryTransportProperties defaultJsonRpcTransport = NacosA2aRegistryTransportProperties.builder()
                 .endpointAddress(endpointAddress).endpointPort(endpointPort).endpointPath(endpointPath)
                 .transport(AiConstants.A2a.A2A_ENDPOINT_DEFAULT_TRANSPORT).build();

@@ -23,6 +23,7 @@ import com.alibaba.nacos.api.ai.model.a2a.AgentCard;
 import com.alibaba.nacos.api.ai.model.a2a.AgentEndpoint;
 import com.alibaba.nacos.api.exception.NacosException;
 import com.alibaba.nacos.api.exception.runtime.NacosRuntimeException;
+import io.agentscope.extensions.a2a.agent.utils.LoggerUtil;
 import io.agentscope.extensions.nacos.a2a.utils.AgentCardConverterUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -76,9 +77,15 @@ public class NacosA2aRegistry {
     }
     
     private void registerEndpoint(AgentCard agentCard, NacosA2aRegistryProperties a2aProperties) throws NacosException {
-        if (a2aProperties.transportProperties().isEmpty()) {
+        if (!a2aProperties.enabledRegisterEndpoint()) {
+            LoggerUtil.info(log, "Disabled register endpoint(s) to Agent, skip endpoint(s) register step.");
             return;
         }
+        if (a2aProperties.transportProperties().isEmpty()) {
+            LoggerUtil.warn(log, "No endpoint(s) found, skip endpoint(s) register step.");
+            return;
+        }
+        LoggerUtil.info(log, "Register {} endpoint(s) to Nacos", a2aProperties.transportProperties().size());
         if (a2aProperties.transportProperties().size() == 1) {
             AgentEndpoint endpoint = buildAgentEndpoint(a2aProperties.transportProperties().values().iterator().next(),
                     agentCard.getVersion());

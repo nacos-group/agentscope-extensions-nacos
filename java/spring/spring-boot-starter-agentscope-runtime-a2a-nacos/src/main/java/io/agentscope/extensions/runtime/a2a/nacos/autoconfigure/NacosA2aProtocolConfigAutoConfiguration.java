@@ -55,6 +55,7 @@ public class NacosA2aProtocolConfigAutoConfiguration {
         NacosA2aProtocolConfig nacosA2aProtocolConfig = NacosBeanUtil.getNacosA2aProtocolConfig(protocolConfigs);
         NacosA2aProperties nacosA2aProperties = new NacosA2aProperties();
         nacosA2aProperties.setRegisterAsLatest(nacosA2aProtocolConfig.isRegisterAsLatest());
+        nacosA2aProperties.setEnabledRegisterEndpoint(nacosA2aProtocolConfig.isEnabledRegisterEndpoint());
         return nacosA2aProperties;
     }
     

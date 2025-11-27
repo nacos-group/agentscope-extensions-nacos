@@ -37,17 +37,20 @@ public class NacosA2aProtocolConfig extends A2aProtocolConfig {
     
     private final boolean registerAsLatest;
     
+    private final boolean enabledRegisterEndpoint;
+    
     public NacosA2aProtocolConfig(String name, String description, String url, AgentProvider provider, String version,
             String documentationUrl, List<String> defaultInputModes, List<String> defaultOutputModes,
             List<AgentSkill> skills, boolean supportsAuthenticatedExtendedCard,
             Map<String, SecurityScheme> securitySchemes, List<Map<String, List<String>>> security, String iconUrl,
             List<AgentInterface> additionalInterfaces, String preferredTransport, Properties nacosProperties,
-            boolean registerAsLatest) {
+            boolean registerAsLatest, boolean enabledRegisterEndpoint) {
         super(name, description, url, provider, version, documentationUrl, defaultInputModes, defaultOutputModes,
                 skills, supportsAuthenticatedExtendedCard, securitySchemes, security, iconUrl, additionalInterfaces,
                 preferredTransport);
         this.nacosProperties = nacosProperties;
         this.registerAsLatest = registerAsLatest;
+        this.enabledRegisterEndpoint = enabledRegisterEndpoint;
     }
     
     public Properties getNacosProperties() {
@@ -58,11 +61,17 @@ public class NacosA2aProtocolConfig extends A2aProtocolConfig {
         return registerAsLatest;
     }
     
+    public boolean isEnabledRegisterEndpoint() {
+        return enabledRegisterEndpoint;
+    }
+    
     public static class Builder extends A2aProtocolConfig.Builder {
         
         private final Properties nacosProperties;
         
         private boolean registerAsLatest = true;
+        
+        private boolean enabledRegisterEndpoint = true;
         
         public Builder(Properties nacosProperties) {
             this.nacosProperties = nacosProperties;
@@ -70,6 +79,11 @@ public class NacosA2aProtocolConfig extends A2aProtocolConfig {
         
         public Builder registerAsLatest(boolean registerAsLatest) {
             this.registerAsLatest = registerAsLatest;
+            return this;
+        }
+        
+        public Builder enabledRegisterEndpoint(boolean enabledRegisterEndpoint) {
+            this.enabledRegisterEndpoint = enabledRegisterEndpoint;
             return this;
         }
         
@@ -156,7 +170,8 @@ public class NacosA2aProtocolConfig extends A2aProtocolConfig {
             }
             return new NacosA2aProtocolConfig(name, description, url, provider, version, documentationUrl,
                     defaultInputModes, defaultOutputModes, skills, supportsAuthenticatedExtendedCard, securitySchemes,
-                    security, iconUrl, additionalInterfaces, preferredTransport, nacosProperties, registerAsLatest);
+                    security, iconUrl, additionalInterfaces, preferredTransport, nacosProperties, registerAsLatest,
+                    enabledRegisterEndpoint);
         }
     }
 }

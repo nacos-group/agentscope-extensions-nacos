@@ -32,6 +32,8 @@ public class NacosA2aProperties {
     
     private boolean registerAsLatest;
     
+    private boolean enabledRegisterEndpoint;
+    
     private Map<String, NacosA2aTransportProperties> transports = new HashMap<>();
     
     public boolean isRegisterAsLatest() {
@@ -40,6 +42,14 @@ public class NacosA2aProperties {
     
     public void setRegisterAsLatest(boolean registerAsLatest) {
         this.registerAsLatest = registerAsLatest;
+    }
+    
+    public boolean isEnabledRegisterEndpoint() {
+        return enabledRegisterEndpoint;
+    }
+    
+    public void setEnabledRegisterEndpoint(boolean enabledRegisterEndpoint) {
+        this.enabledRegisterEndpoint = enabledRegisterEndpoint;
     }
     
     public Map<String, NacosA2aTransportProperties> getTransports() {

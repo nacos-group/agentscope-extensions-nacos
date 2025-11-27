@@ -65,7 +65,8 @@ public class NacosAgentRegistry implements AgentRegistry {
     
     @Override
     public void register(AgentCard agentCard, DeployProperties deployProperties) {
-        NacosA2aRegistryProperties properties = new NacosA2aRegistryProperties(nacosA2aProperties.isRegisterAsLatest());
+        NacosA2aRegistryProperties properties = new NacosA2aRegistryProperties(nacosA2aProperties.isRegisterAsLatest(),
+                nacosA2aProperties.isEnabledRegisterEndpoint());
         buildTransportProperties(agentCard, deployProperties).forEach(properties::addTransport);
         nacosA2aRegistry.registerAgent(agentCard, properties);
     }
