@@ -30,9 +30,9 @@ import java.util.Map;
 @ConfigurationProperties(prefix = Constants.REGISTRY_PREFIX)
 public class NacosA2aProperties {
     
-    private boolean registerAsLatest;
+    private boolean registerAsLatest = true;
     
-    private boolean enabledRegisterEndpoint;
+    private boolean enabledRegisterEndpoint = true;
     
     private Map<String, NacosA2aTransportProperties> transports = new HashMap<>();
     
