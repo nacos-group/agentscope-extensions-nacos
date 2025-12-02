@@ -17,13 +17,22 @@
 package io.agentscope.extensions.a2a.agent.event;
 
 import io.a2a.client.MessageEvent;
+import io.agentscope.core.message.Msg;
+import io.agentscope.extensions.a2a.agent.utils.LoggerUtil;
+import io.agentscope.extensions.a2a.agent.utils.MessageConvertUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.List;
 
 /**
- * * Handler for {@link io.a2a.client.MessageEvent}.
+ * Handler for {@link io.a2a.client.MessageEvent}.
  *
  * @author xiweng.yy
  */
 public class MessageEventHandler implements ClientEventHandler<MessageEvent> {
+    
+    private static final Logger log = LoggerFactory.getLogger(MessageEventHandler.class);
     
     @Override
     public Class<MessageEvent> getHandleEventType() {
@@ -32,6 +41,11 @@ public class MessageEventHandler implements ClientEventHandler<MessageEvent> {
     
     @Override
     public void handle(MessageEvent event, ClientEventContext context) {
-        // TODO
+        String currentTaskId = context.getCurrentTaskId();
+        Msg msg = MessageConvertUtil.convertFromMessage(event.getMessage());
+        context.getSink().success(msg);
+        LoggerUtil.info(log, "[{}] A2aAgent complete call.", currentTaskId);
+        LoggerUtil.debug(log, "[{}] A2aAgent complete with artifact messages: ", currentTaskId);
+        LoggerUtil.logTextMsgDetail(log, List.of(msg));
     }
 }
