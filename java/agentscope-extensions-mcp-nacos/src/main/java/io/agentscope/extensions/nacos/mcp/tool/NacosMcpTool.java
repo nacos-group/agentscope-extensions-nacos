@@ -21,8 +21,8 @@ import com.alibaba.nacos.api.ai.model.mcp.McpTool;
 import com.alibaba.nacos.api.exception.NacosException;
 import com.alibaba.nacos.api.exception.runtime.NacosRuntimeException;
 import io.agentscope.core.message.ToolResultBlock;
-import io.agentscope.core.message.ToolUseBlock;
 import io.agentscope.core.tool.AgentTool;
+import io.agentscope.core.tool.ToolCallParam;
 import io.agentscope.extensions.nacos.mcp.client.NacosMcpClientWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -74,13 +74,8 @@ public class NacosMcpTool implements AgentTool {
     }
     
     @Override
-    public Mono<ToolResultBlock> callAsync(Map<String, Object> input) {
-        return mcpTool.callAsync(input);
-    }
-    
-    @Override
-    public void setCurrentToolUseBlock(ToolUseBlock toolUseBlock) {
-        mcpTool.setCurrentToolUseBlock(toolUseBlock);
+    public Mono<ToolResultBlock> callAsync(ToolCallParam param) {
+        return mcpTool.callAsync(param);
     }
     
     private McpTool getMcpTool(McpServerDetailInfo mcpServer) {

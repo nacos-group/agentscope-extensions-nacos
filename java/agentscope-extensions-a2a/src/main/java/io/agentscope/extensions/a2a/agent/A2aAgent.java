@@ -96,7 +96,7 @@ public class A2aAgent extends AgentBase {
     }
     
     public A2aAgent(String name, A2aAgentConfig a2aAgentConfig, List<Hook> hooks) {
-        super(name, hooks);
+        super(name, null, hooks);
         this.a2aAgentConfig = a2aAgentConfig;
         LoggerUtil.debug(log, "A2aAgent init with config: {}", a2aAgentConfig);
         getHooks().add(new A2aClientLifecycleHook());
@@ -108,6 +108,11 @@ public class A2aAgent extends AgentBase {
             DateTimeSerializationUtil.adaptOldVersionA2aDateTimeSerialization();
         }
         this.clientEventHandlerRouter = new ClientEventHandlerRouter();
+    }
+    
+    @Override
+    public String getDescription() {
+        return a2aAgentConfig.agentCardProducer().produce(getName()).description();
     }
     
     @Override

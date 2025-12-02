@@ -79,18 +79,15 @@ public class NacosToolkit extends Toolkit {
         return this.registerMcpClient(mcpClientWrapper, null);
     }
     
-    @Override
     public Mono<Void> registerMcpClient(McpClientWrapper mcpClientWrapper, List<String> enableTools) {
         return this.registerMcpClient(mcpClientWrapper, enableTools, null);
     }
     
-    @Override
     public Mono<Void> registerMcpClient(McpClientWrapper mcpClientWrapper, List<String> enableTools,
             List<String> disableTools) {
         return this.registerMcpClient(mcpClientWrapper, enableTools, disableTools, null);
     }
     
-    @Override
     public Mono<Void> registerMcpClient(McpClientWrapper mcpClientWrapper, List<String> enableTools,
             List<String> disableTools, String groupName) {
         return delegateRegisterMcpClient(mcpClientWrapper, enableTools, disableTools, groupName).doOnSuccess(
@@ -104,7 +101,9 @@ public class NacosToolkit extends Toolkit {
     
     private Mono<Void> delegateRegisterMcpClient(McpClientWrapper mcpClientWrapper, List<String> enableTools,
             List<String> disableTools, String groupName) {
-        return super.registerMcpClient(mcpClientWrapper, enableTools, disableTools, groupName);
+        super.registration().mcpClient(mcpClientWrapper).enableTools(enableTools).disableTools(disableTools)
+                .group(groupName).apply();
+        return Mono.empty();
     }
     
     private Mono<Void> delegateRemoveMcpClient(String mcpClientName) {

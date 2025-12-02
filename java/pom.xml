@@ -62,15 +62,15 @@
     </modules>
     
     <properties>
-        <revision>0.2.1-SNAPSHOT</revision>
+        <revision>1.0.0-SNAPSHOT</revision>
         
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <java.version>17</java.version>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         
-        <agentscope.version>0.2.1</agentscope.version>
-        <agentscope-runtime.version>0.1.2</agentscope-runtime.version>
+        <agentscope.version>1.0.0</agentscope.version>
+        <agentscope-runtime.version>1.0.0-SNAPSHOT</agentscope-runtime.version>
         <nacos.version>3.1.1</nacos.version>
         <a2a-java.version>0.3.2.Final</a2a-java.version>
         <mcp-java.version>0.14.1</mcp-java.version>
