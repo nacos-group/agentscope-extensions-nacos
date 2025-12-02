@@ -21,6 +21,10 @@ package io.agentscope.extensions.runtime.a2a.nacos.constant;
  */
 public class Constants {
     
+    public static final String PROTOCOL_TYPE_HTTP = "http";
+    
+    public static final String PROTOCOL_TYPE_HTTPS = "https";
+    
     public static final String NACOS_PREFIX = "spring.agentscope.runtime.a2a.nacos";
     
     public static final String REGISTRY_PREFIX = NACOS_PREFIX + ".registry";

@@ -34,6 +34,15 @@ public class NacosA2aProperties {
     
     private boolean enabledRegisterEndpoint = true;
     
+    /**
+     * If setting with this property, the preferredTransport and url in agentCard will be overwritten.
+     *
+     * <p>
+     * If not found the transport from agentscope and all properties, overwrite will be ignored.
+     * </p>
+     */
+    private String overwritePreferredTransport;
+    
     private Map<String, NacosA2aTransportProperties> transports = new HashMap<>();
     
     public boolean isRegisterAsLatest() {
@@ -50,6 +59,14 @@ public class NacosA2aProperties {
     
     public void setEnabledRegisterEndpoint(boolean enabledRegisterEndpoint) {
         this.enabledRegisterEndpoint = enabledRegisterEndpoint;
+    }
+    
+    public String getOverwritePreferredTransport() {
+        return overwritePreferredTransport;
+    }
+    
+    public void setOverwritePreferredTransport(String overwritePreferredTransport) {
+        this.overwritePreferredTransport = overwritePreferredTransport;
     }
     
     public Map<String, NacosA2aTransportProperties> getTransports() {

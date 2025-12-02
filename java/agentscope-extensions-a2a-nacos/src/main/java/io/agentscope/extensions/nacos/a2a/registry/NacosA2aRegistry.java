@@ -20,6 +20,7 @@ import com.alibaba.nacos.api.ai.A2aService;
 import com.alibaba.nacos.api.ai.AiFactory;
 import com.alibaba.nacos.api.ai.constant.AiConstants;
 import com.alibaba.nacos.api.ai.model.a2a.AgentCard;
+import com.alibaba.nacos.api.ai.model.a2a.AgentCardDetailInfo;
 import com.alibaba.nacos.api.ai.model.a2a.AgentEndpoint;
 import com.alibaba.nacos.api.exception.NacosException;
 import com.alibaba.nacos.api.exception.runtime.NacosRuntimeException;
@@ -63,17 +64,29 @@ public class NacosA2aRegistry {
             tryReleaseAgentCard(nacosAgentCard, a2aProperties);
             registerEndpoint(nacosAgentCard, a2aProperties);
         } catch (NacosException e) {
-            log.error("Register agent card {} to Nacos failed,", agentCard.name(), e);
+            LoggerUtil.error(log, "Register agent card {} to Nacos failed,", agentCard.name(), e);
             throw new NacosRuntimeException(e.getErrCode(), e.getErrMsg());
         }
     }
     
     private void tryReleaseAgentCard(AgentCard agentCard, NacosA2aRegistryProperties a2aProperties)
             throws NacosException {
-        log.info("Register agent card {} to Nacos. ", agentCard.getName());
+        if (null != tryGetAgentCardFromNacos(agentCard)) {
+            LoggerUtil.warn(log, "Agent card {} already exists, agentCard release might be ignored.",
+                    agentCard.getName());
+        }
+        LoggerUtil.info(log, "Register agent card {} to Nacos. ", agentCard.getName());
         a2aService.releaseAgentCard(agentCard, AiConstants.A2a.A2A_ENDPOINT_TYPE_SERVICE,
                 a2aProperties.isSetAsLatest());
-        log.info("Register agent card {} to Nacos successfully. ", agentCard.getName());
+        LoggerUtil.info(log, "Register agent card {} to Nacos successfully. ", agentCard.getName());
+    }
+    
+    private AgentCardDetailInfo tryGetAgentCardFromNacos(AgentCard agentCard) throws NacosException {
+        try {
+            return a2aService.getAgentCard(agentCard.getName(), agentCard.getVersion());
+        } catch (NacosException ignored) {
+            return null;
+        }
     }
     
     private void registerEndpoint(AgentCard agentCard, NacosA2aRegistryProperties a2aProperties) throws NacosException {

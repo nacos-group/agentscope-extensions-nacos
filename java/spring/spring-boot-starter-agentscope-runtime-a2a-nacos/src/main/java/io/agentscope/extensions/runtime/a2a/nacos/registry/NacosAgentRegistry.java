@@ -16,12 +16,15 @@
 
 package io.agentscope.extensions.runtime.a2a.nacos.registry;
 
+import com.alibaba.nacos.api.ai.constant.AiConstants;
 import com.alibaba.nacos.common.utils.StringUtils;
 import io.a2a.spec.AgentCard;
+import io.a2a.spec.AgentInterface;
 import io.agentscope.extensions.a2a.agent.utils.LoggerUtil;
 import io.agentscope.extensions.nacos.a2a.registry.NacosA2aRegistry;
 import io.agentscope.extensions.nacos.a2a.registry.NacosA2aRegistryProperties;
 import io.agentscope.extensions.nacos.a2a.registry.NacosA2aRegistryTransportProperties;
+import io.agentscope.extensions.runtime.a2a.nacos.constant.Constants;
 import io.agentscope.extensions.runtime.a2a.nacos.properties.NacosA2aProperties;
 import io.agentscope.extensions.runtime.a2a.nacos.properties.NacosA2aTransportProperties;
 import io.agentscope.extensions.runtime.a2a.nacos.properties.NacosA2aTransportPropertiesEnvParser;
@@ -33,6 +36,8 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -48,6 +53,8 @@ public class NacosAgentRegistry implements AgentRegistry {
      * AgentScope export a2a message with fixed path: "/a2a/"
      */
     private static final String DEFAULT_ENDPOINT_PATH = "/a2a/";
+    
+    private static final String AGENT_INTERFACE_URL_PATTERN = "%s://%s:%s";
     
     private final NacosA2aRegistry nacosA2aRegistry;
     
@@ -68,6 +75,7 @@ public class NacosAgentRegistry implements AgentRegistry {
         NacosA2aRegistryProperties properties = new NacosA2aRegistryProperties(nacosA2aProperties.isRegisterAsLatest(),
                 nacosA2aProperties.isEnabledRegisterEndpoint());
         buildTransportProperties(agentCard, deployProperties).forEach(properties::addTransport);
+        agentCard = tryOverwritePreferredTransport(agentCard, properties);
         nacosA2aRegistry.registerAgent(agentCard, properties);
     }
     
@@ -84,7 +92,7 @@ public class NacosAgentRegistry implements AgentRegistry {
                 return overwriteAttributes(null, properties, targetTransport);
             }
             NacosA2aRegistryTransportProperties newValue = overwriteAttributes(oldValue, properties, targetTransport);
-            LoggerUtil.debug(log, "Overwrite attributes for transport {} from {} to {}", targetTransport, oldValue,
+            LoggerUtil.info(log, "Overwrite attributes for transport {} from {} to {}", targetTransport, oldValue,
                     newValue);
             return newValue;
         }));
@@ -147,5 +155,62 @@ public class NacosAgentRegistry implements AgentRegistry {
         }
         builder.transport(transport);
         return builder.build();
+    }
+    
+    private AgentCard tryOverwritePreferredTransport(AgentCard agentCard, NacosA2aRegistryProperties properties) {
+        if (StringUtils.isEmpty(nacosA2aProperties.getOverwritePreferredTransport())) {
+            return agentCard;
+        }
+        String preferredTransport = nacosA2aProperties.getOverwritePreferredTransport().toUpperCase();
+        LoggerUtil.info(log, "Try to overwrite preferred transport from {} to {}", agentCard.preferredTransport(),
+                preferredTransport);
+        if (properties.transportProperties().containsKey(preferredTransport)) {
+            return doOverwrite(agentCard, properties.transportProperties().get(preferredTransport));
+        }
+        LoggerUtil.warn(log,
+                "Preferred transport {} is not found, will use original preferred transport {} with url {}",
+                preferredTransport, agentCard.preferredTransport(), agentCard.url());
+        return agentCard;
+    }
+    
+    private AgentCard doOverwrite(AgentCard agentCard,
+            NacosA2aRegistryTransportProperties transportProperties) {
+        String newUrl = generateNewUrl(transportProperties);
+        String transport = transportProperties.transport();
+        AgentInterface agentInterface = new AgentInterface(transport, newUrl);
+        List<AgentInterface> agentInterfaces = new LinkedList<>(agentCard.additionalInterfaces());
+        agentInterfaces.add(agentInterface);
+        AgentCard.Builder builder = new AgentCard.Builder(agentCard);
+        builder.url(newUrl).preferredTransport(transport).additionalInterfaces(agentInterfaces);
+        LoggerUtil.info(log, "Overwrite preferred transport from {} to {} with url from {} to {}",
+                agentCard.preferredTransport(), transport, agentCard.url(), newUrl);
+        return builder.build();
+    }
+    
+    private String generateNewUrl(NacosA2aRegistryTransportProperties transportProperties) {
+        String protocol = transportProperties.endpointProtocol();
+        if (StringUtils.isEmpty(protocol)) {
+            protocol = AiConstants.A2a.A2A_ENDPOINT_DEFAULT_PROTOCOL;
+        }
+        boolean isSupportTls = transportProperties.isSupportTls();
+        protocol = handlerTlsIfNeeded(protocol, isSupportTls);
+        String url = String.format(AGENT_INTERFACE_URL_PATTERN, protocol, transportProperties.endpointAddress(),
+                transportProperties.endpointPort());
+        String path = transportProperties.endpointPath();
+        if (StringUtils.isNotBlank(path)) {
+            url += path.startsWith("/") ? path : "/" + path;
+        }
+        String query = transportProperties.endpointQuery();
+        if (StringUtils.isNotBlank(query)) {
+            url += "?" + query;
+        }
+        return url;
+    }
+    
+    private String handlerTlsIfNeeded(String protocol, boolean isSupportTls) {
+        if (AiConstants.A2a.A2A_ENDPOINT_DEFAULT_PROTOCOL.equalsIgnoreCase(protocol)) {
+            return isSupportTls ? Constants.PROTOCOL_TYPE_HTTPS : Constants.PROTOCOL_TYPE_HTTP;
+        }
+        return protocol;
     }
 }

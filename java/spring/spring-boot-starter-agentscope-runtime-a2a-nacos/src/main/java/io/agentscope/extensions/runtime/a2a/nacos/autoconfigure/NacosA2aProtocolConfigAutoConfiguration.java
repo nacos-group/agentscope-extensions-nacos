@@ -56,6 +56,7 @@ public class NacosA2aProtocolConfigAutoConfiguration {
         NacosA2aProperties nacosA2aProperties = new NacosA2aProperties();
         nacosA2aProperties.setRegisterAsLatest(nacosA2aProtocolConfig.isRegisterAsLatest());
         nacosA2aProperties.setEnabledRegisterEndpoint(nacosA2aProtocolConfig.isEnabledRegisterEndpoint());
+        nacosA2aProperties.setOverwritePreferredTransport(nacosA2aProtocolConfig.getOverwritePreferredTransport());
         return nacosA2aProperties;
     }
     
