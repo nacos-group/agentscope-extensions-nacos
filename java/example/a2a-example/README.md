@@ -87,19 +87,18 @@ Type any message to send to the agent, or type `exit` or `quit` to terminate the
 The registration example uses Spring Boot's `application.yaml` for configuration:
 
 ```yaml
-spring:
-  agentscope:
-    runtime:
-      a2a:
-        card:
-          description: "Example of A2A(Agent2Agent) Protocol Agent"
-          provider:
-            organization: Alibaba Nacos
-            url: https://nacos.io
-        nacos:
-          server-addr: ${NACOS_SERVER_ADDRESS:127.0.0.1:8848}
-          username: ${NACOS_USERNAME:nacos}
-          password: ${NACOS_PASSWORD:nacos}
+agentscope:
+  a2a:
+    server:
+      card:
+        description: "Example of A2A(Agent2Agent) Protocol Agent"
+        provider:
+          organization: Alibaba Nacos
+          url: https://nacos.io
+      nacos:
+        server-addr: ${NACOS_SERVER_ADDRESS:127.0.0.1:8848}
+        username: ${NACOS_USERNAME:nacos}
+        password: ${NACOS_PASSWORD:nacos}
 ```
 
 ### Environment Variables
