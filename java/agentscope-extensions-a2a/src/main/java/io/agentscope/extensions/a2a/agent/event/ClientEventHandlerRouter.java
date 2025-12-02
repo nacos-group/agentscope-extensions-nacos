@@ -36,9 +36,10 @@ public class ClientEventHandlerRouter {
     private final Map<Class<? extends ClientEvent>, ClientEventHandler<? extends ClientEvent>> handlers;
     
     public ClientEventHandlerRouter() {
-        this.handlers = new HashMap<>(2);
+        this.handlers = new HashMap<>(3);
         registerHandler(new TaskUpdateEventHandler());
         registerHandler(new MessageEventHandler());
+        registerHandler(new TaskEventHandler());
     }
     
     private void registerHandler(ClientEventHandler<? extends ClientEvent> handler) {
