@@ -74,6 +74,14 @@ public class NacosServerProperties implements EnvironmentAware {
         this.namespace = namespace;
     }
     
+    public String getServerAddr() {
+        return serverAddr;
+    }
+    
+    public void setServerAddr(String serverAddr) {
+        this.serverAddr = serverAddr;
+    }
+    
     public String getUsername() {
         return username;
     }
@@ -112,14 +120,6 @@ public class NacosServerProperties implements EnvironmentAware {
     
     public void setEndpoint(String endpoint) {
         this.endpoint = endpoint;
-    }
-    
-    public String getServerAddr() {
-        return serverAddr;
-    }
-    
-    void setServerAddr(String serverAddr) {
-        this.serverAddr = serverAddr;
     }
     
     public Properties getNacosProperties() {

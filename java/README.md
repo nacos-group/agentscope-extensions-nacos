@@ -107,19 +107,18 @@ Add the following dependency to your `pom.xml`:
 Configure your `application.yaml`:
 
 ```yaml
-spring:
-  agentscope:
-    runtime:
-      a2a:
-        card:
-          description: "Your agent description"
-          provider:
-            organization: Your Organization
-            url: https://your-organization.com
-        nacos:
-          server-addr: ${NACOS_SERVER_ADDRESS:127.0.0.1:8848}
-          username: ${NACOS_USERNAME:nacos}
-          password: ${NACOS_PASSWORD:nacos}
+agentscope:
+  a2a:
+    server:
+      card:
+        description: "Example of A2A(Agent2Agent) Protocol Agent"
+        provider:
+          organization: Alibaba Nacos
+          url: https://nacos.io
+      nacos:
+        server-addr: ${NACOS_SERVER_ADDRESS:127.0.0.1:8848}
+        username: ${NACOS_USERNAME:nacos}
+        password: ${NACOS_PASSWORD:nacos}
 ```
 
 ### A2A Agent Discovery
