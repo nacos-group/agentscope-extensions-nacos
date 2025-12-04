@@ -40,6 +40,8 @@ public class TaskEventHandler implements ClientEventHandler<TaskEvent> {
     public void handle(TaskEvent event, ClientEventContext context) {
         Task task = event.getTask();
         context.setTask(task);
-        LoggerUtil.info(log, "A2A Task {} with status {}", task.getId(), task.getStatus());
+        context.getAgent().registerState("taskId", obj -> task.getId(), obj -> obj);
+        LoggerUtil.info(log, "[{}] A2A Task {} with status {}", context.getCurrentRequestId(), task.getId(),
+                task.getStatus());
     }
 }

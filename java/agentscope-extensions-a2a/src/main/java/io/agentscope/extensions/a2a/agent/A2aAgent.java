@@ -80,7 +80,7 @@ public class A2aAgent extends AgentBase {
     /**
      * According to the design, one agent should not be call with multiple threads and tasks at the same time.
      */
-    private String currentTaskId;
+    private String currentRequestId;
     
     /**
      * The context of client event, one agent should not be call with multiple threads and tasks at the same time.
@@ -117,14 +117,12 @@ public class A2aAgent extends AgentBase {
     
     @Override
     protected Mono<Msg> doCall(List<Msg> msgs) {
-        LoggerUtil.info(log, "[{}] A2aAgent start call.", currentTaskId);
-        LoggerUtil.debug(log, "[{}] A2aAgent call with input messages: ", currentTaskId);
+        LoggerUtil.info(log, "[{}] A2aAgent start call.", currentRequestId);
+        LoggerUtil.debug(log, "[{}] A2aAgent call with input messages: ", currentRequestId);
         LoggerUtil.logTextMsgDetail(log, msgs);
-        registerState("taskId", obj -> currentTaskId, obj -> obj);
         clientEventContext.setHooks(getSortedHooks());
         return Mono.defer(() -> {
             Message message = MessageConvertUtil.convertFromMsg(msgs);
-            message.setTaskId(currentTaskId);
             return checkInterruptedAsync().then(doExecute(message));
         });
     }
@@ -149,12 +147,12 @@ public class A2aAgent extends AgentBase {
     
     @Override
     protected Mono<Msg> handleInterrupt(InterruptContext context, Msg... originalArgs) {
-        LoggerUtil.debug(log, "[{}] A2aAgent handle interrupt.", currentTaskId);
+        LoggerUtil.debug(log, "[{}] A2aAgent handle interrupt.", currentRequestId);
         try {
-            TaskIdParams taskIdParams = new TaskIdParams(currentTaskId);
+            TaskIdParams taskIdParams = new TaskIdParams(currentRequestId);
             a2aClient.cancelTask(taskIdParams, null);
             return Mono.just(Msg.builder()
-                    .content(TextBlock.builder().text(String.format(INTERRUPT_HINT_PATTERN, currentTaskId)).build())
+                    .content(TextBlock.builder().text(String.format(INTERRUPT_HINT_PATTERN, currentRequestId)).build())
                     .build());
         } catch (A2AClientException e) {
             return Mono.just(Msg.builder().content(TextBlock.builder().text(e.getMessage()).build()).build());
@@ -176,7 +174,7 @@ public class A2aAgent extends AgentBase {
         return Mono.create(sink -> {
             clientEventContext.setSink(sink);
             BiConsumer<ClientEvent, AgentCard> a2aEventConsumer = (event, agentCard) -> {
-                LoggerUtil.trace(log, "[{}] A2aAgent receive event {}: ", currentTaskId,
+                LoggerUtil.trace(log, "[{}] A2aAgent receive event {}: ", currentRequestId,
                         event.getClass().getSimpleName());
                 LoggerUtil.logA2aClientEventDetail(log, event);
                 clientEventHandlerRouter.handle(event, clientEventContext);
@@ -190,16 +188,16 @@ public class A2aAgent extends AgentBase {
         @Override
         public <T extends HookEvent> Mono<T> onEvent(T event) {
             if (event instanceof PreCallEvent preCallEvent) {
-                currentTaskId = UUID.randomUUID().toString();
-                clientEventContext = new ClientEventContext(currentTaskId, A2aAgent.this);
+                currentRequestId = UUID.randomUUID().toString();
+                clientEventContext = new ClientEventContext(currentRequestId, A2aAgent.this);
                 a2aClient = buildA2aClient(preCallEvent.getAgent().getName());
-                LoggerUtil.debug(log, "[{}] A2aAgent build A2a Client with Agent Card: {}.", currentTaskId,
+                LoggerUtil.debug(log, "[{}] A2aAgent build A2a Client with Agent Card: {}.", currentRequestId,
                         a2aAgentConfig.agentCardProducer().produce(getName()));
             } else if (event instanceof PostCallEvent) {
                 tryReleaseResource();
             } else if (event instanceof ErrorEvent errorEvent) {
                 tryReleaseResource();
-                LoggerUtil.error(log, "[{}] A2aAgent execute error.", currentTaskId, errorEvent.getError());
+                LoggerUtil.error(log, "[{}] A2aAgent execute error.", currentRequestId, errorEvent.getError());
             }
             return Mono.just(event);
         }
@@ -214,7 +212,7 @@ public class A2aAgent extends AgentBase {
             if (null != a2aClient) {
                 a2aClient.close();
                 a2aClient = null;
-                LoggerUtil.debug(log, "[{}] A2aAgent close A2a Client.", currentTaskId);
+                LoggerUtil.debug(log, "[{}] A2aAgent close A2a Client.", currentRequestId);
             }
         }
     }

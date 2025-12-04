@@ -41,11 +41,11 @@ public class MessageEventHandler implements ClientEventHandler<MessageEvent> {
     
     @Override
     public void handle(MessageEvent event, ClientEventContext context) {
-        String currentTaskId = context.getCurrentTaskId();
+        String currentRequestId = context.getCurrentRequestId();
         Msg msg = MessageConvertUtil.convertFromMessage(event.getMessage());
         context.getSink().success(msg);
-        LoggerUtil.info(log, "[{}] A2aAgent complete call.", currentTaskId);
-        LoggerUtil.debug(log, "[{}] A2aAgent complete with artifact messages: ", currentTaskId);
+        LoggerUtil.info(log, "[{}] A2aAgent complete call.", currentRequestId);
+        LoggerUtil.debug(log, "[{}] A2aAgent complete with artifact messages: ", currentRequestId);
         LoggerUtil.logTextMsgDetail(log, List.of(msg));
     }
 }

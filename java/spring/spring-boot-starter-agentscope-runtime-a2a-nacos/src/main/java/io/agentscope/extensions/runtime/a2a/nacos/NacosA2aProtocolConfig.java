@@ -16,14 +16,9 @@
 
 package io.agentscope.extensions.runtime.a2a.nacos;
 
-import io.a2a.spec.AgentInterface;
-import io.a2a.spec.AgentProvider;
-import io.a2a.spec.AgentSkill;
-import io.a2a.spec.SecurityScheme;
 import io.agentscope.runtime.protocol.a2a.A2aProtocolConfig;
+import io.agentscope.runtime.protocol.a2a.ConfigurableAgentCard;
 
-import java.util.List;
-import java.util.Map;
 import java.util.Properties;
 
 /**
@@ -48,15 +43,9 @@ public class NacosA2aProtocolConfig extends A2aProtocolConfig {
      */
     private final String overwritePreferredTransport;
     
-    public NacosA2aProtocolConfig(String name, String description, String url, AgentProvider provider, String version,
-            String documentationUrl, List<String> defaultInputModes, List<String> defaultOutputModes,
-            List<AgentSkill> skills, boolean supportsAuthenticatedExtendedCard,
-            Map<String, SecurityScheme> securitySchemes, List<Map<String, List<String>>> security, String iconUrl,
-            List<AgentInterface> additionalInterfaces, String preferredTransport, Properties nacosProperties,
-            boolean registerAsLatest, boolean enabledRegisterEndpoint, String overwritePreferredTransport) {
-        super(name, description, url, provider, version, documentationUrl, defaultInputModes, defaultOutputModes,
-                skills, supportsAuthenticatedExtendedCard, securitySchemes, security, iconUrl, additionalInterfaces,
-                preferredTransport);
+    public NacosA2aProtocolConfig(ConfigurableAgentCard agentCard, Properties nacosProperties, boolean registerAsLatest,
+            boolean enabledRegisterEndpoint, String overwritePreferredTransport) {
+        super(agentCard);
         this.nacosProperties = nacosProperties;
         this.registerAsLatest = registerAsLatest;
         this.enabledRegisterEndpoint = enabledRegisterEndpoint;
@@ -108,93 +97,8 @@ public class NacosA2aProtocolConfig extends A2aProtocolConfig {
             return this;
         }
         
-        @Override
-        public NacosA2aProtocolConfig.Builder name(String name) {
-            this.name = name;
-            return this;
-        }
-        
-        @Override
-        public NacosA2aProtocolConfig.Builder description(String description) {
-            this.description = description;
-            return this;
-        }
-        
-        @Override
-        public NacosA2aProtocolConfig.Builder url(String url) {
-            this.url = url;
-            return this;
-        }
-        
-        @Override
-        public NacosA2aProtocolConfig.Builder provider(AgentProvider provider) {
-            this.provider = provider;
-            return this;
-        }
-        
-        @Override
-        public NacosA2aProtocolConfig.Builder version(String version) {
-            this.version = version;
-            return this;
-        }
-        
-        @Override
-        public NacosA2aProtocolConfig.Builder documentationUrl(String documentationUrl) {
-            this.documentationUrl = documentationUrl;
-            return this;
-        }
-        
-        @Override
-        public NacosA2aProtocolConfig.Builder defaultInputModes(List<String> defaultInputModes) {
-            this.defaultInputModes = defaultInputModes;
-            return this;
-        }
-        
-        @Override
-        public NacosA2aProtocolConfig.Builder defaultOutputModes(List<String> defaultOutputModes) {
-            this.defaultOutputModes = defaultOutputModes;
-            return this;
-        }
-        
-        @Override
-        public NacosA2aProtocolConfig.Builder skills(List<AgentSkill> skills) {
-            this.skills = skills;
-            return this;
-        }
-        
-        @Override
-        public NacosA2aProtocolConfig.Builder supportsAuthenticatedExtendedCard(boolean supportsAuthenticatedExtendedCard) {
-            this.supportsAuthenticatedExtendedCard = supportsAuthenticatedExtendedCard;
-            return this;
-        }
-        
-        @Override
-        public NacosA2aProtocolConfig.Builder securitySchemes(Map<String, SecurityScheme> securitySchemes) {
-            this.securitySchemes = securitySchemes;
-            return this;
-        }
-        
-        @Override
-        public NacosA2aProtocolConfig.Builder security(List<Map<String, List<String>>> security) {
-            this.security = security;
-            return this;
-        }
-        
-        @Override
-        public NacosA2aProtocolConfig.Builder iconUrl(String iconUrl) {
-            this.iconUrl = iconUrl;
-            return this;
-        }
-        
-        @Override
-        public NacosA2aProtocolConfig.Builder additionalInterfaces(List<AgentInterface> additionalInterfaces) {
-            this.additionalInterfaces = additionalInterfaces;
-            return this;
-        }
-        
-        @Override
-        public NacosA2aProtocolConfig.Builder preferredTransport(String preferredTransport) {
-            this.preferredTransport = preferredTransport;
+        public NacosA2aProtocolConfig.Builder agentCard(ConfigurableAgentCard agentCard) {
+            super.agentCard(agentCard);
             return this;
         }
         
@@ -203,10 +107,8 @@ public class NacosA2aProtocolConfig extends A2aProtocolConfig {
             if (null == nacosProperties) {
                 throw new IllegalArgumentException("Nacos properties can not be null");
             }
-            return new NacosA2aProtocolConfig(name, description, url, provider, version, documentationUrl,
-                    defaultInputModes, defaultOutputModes, skills, supportsAuthenticatedExtendedCard, securitySchemes,
-                    security, iconUrl, additionalInterfaces, preferredTransport, nacosProperties, registerAsLatest,
-                    enabledRegisterEndpoint, overwritePreferredTransport);
+            return new NacosA2aProtocolConfig(agentCard, nacosProperties, registerAsLatest, enabledRegisterEndpoint,
+                    overwritePreferredTransport);
         }
     }
 }

@@ -34,6 +34,8 @@
         <revision>1.0.0-SNAPSHOT</revision>
         <agentscope.version>1.0.0</agentscope.version>
         <agentscope-extensions.version>${revision}</agentscope-extensions.version>
+        
+        <logback.version>1.5.20</logback.version>
     </properties>
 
     <dependencies>
@@ -47,6 +49,12 @@
             <groupId>io.agentscope</groupId>
             <artifactId>agentscope-core</artifactId>
             <version>${agentscope.version}</version>
+        </dependency>
+        
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>${logback.version}</version>
         </dependency>
     </dependencies>
     

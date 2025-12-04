@@ -88,21 +88,21 @@ public class TaskUpdateEventHandler implements ClientEventHandler<TaskUpdateEven
         
         @Override
         public void handle(TaskStatusUpdateEvent event, ClientEventContext context) {
-            String currentTaskId = context.getCurrentTaskId();
+            String currentRequestId = context.getCurrentRequestId();
             if (event.isFinal()) {
                 Msg msg = MessageConvertUtil.convertFromArtifact(context.getTask().getArtifacts());
                 context.getSink().success(msg);
-                LoggerUtil.info(log, "[{}] A2aAgent complete call.", currentTaskId);
-                LoggerUtil.debug(log, "[{}] A2aAgent complete with artifact messages: ", currentTaskId);
+                LoggerUtil.info(log, "[{}] A2aAgent complete call.", currentRequestId);
+                LoggerUtil.debug(log, "[{}] A2aAgent complete with artifact messages: ", currentRequestId);
                 LoggerUtil.logTextMsgDetail(log, List.of(msg));
             } else {
                 TaskStatus taskStatus = event.getStatus();
-                LoggerUtil.debug(log, "[{}] A2aAgent task status updated to: {}.", currentTaskId, taskStatus.state());
+                LoggerUtil.debug(log, "[{}] A2aAgent task status updated to: {}.", currentRequestId, taskStatus.state());
                 if (null == taskStatus.message()) {
                     return;
                 }
                 Msg msg = MessageConvertUtil.convertFromMessage(taskStatus.message());
-                LoggerUtil.debug(log, "[{}] A2aAgent task status updated with messages: ", currentTaskId);
+                LoggerUtil.debug(log, "[{}] A2aAgent task status updated with messages: ", currentRequestId);
                 LoggerUtil.logTextMsgDetail(log, List.of(msg));
                 ReasoningChunkEvent chunkEvent = new ReasoningChunkEvent(context.getAgent(), "A2A", null, msg, msg);
                 context.getHooks().forEach(hook -> hook.onEvent(chunkEvent).block());
@@ -114,12 +114,12 @@ public class TaskUpdateEventHandler implements ClientEventHandler<TaskUpdateEven
         
         @Override
         public void handle(TaskArtifactUpdateEvent event, ClientEventContext context) {
-            String currentTaskId = context.getCurrentTaskId();
+            String currentRequestTaskId = context.getCurrentRequestId();
             if (null == event.getArtifact()) {
                 return;
             }
             Msg msg = MessageConvertUtil.convertFromArtifact(event.getArtifact());
-            LoggerUtil.debug(log, "[{}] A2aAgent artifact append with messages: ", currentTaskId);
+            LoggerUtil.debug(log, "[{}] A2aAgent artifact append with messages: ", currentRequestTaskId);
             LoggerUtil.logTextMsgDetail(log, List.of(msg));
             ReasoningChunkEvent chunkEvent = new ReasoningChunkEvent(context.getAgent(), "A2A", null, msg, msg);
             context.getHooks().forEach(hook -> hook.onEvent(chunkEvent).block());
