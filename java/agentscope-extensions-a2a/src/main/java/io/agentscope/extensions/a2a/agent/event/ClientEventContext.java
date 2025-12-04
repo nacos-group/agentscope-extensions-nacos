@@ -32,8 +32,8 @@ import java.util.List;
  * @author xiweng.yy
  */
 public class ClientEventContext {
-
-    private final String currentTaskId;
+    
+    private final String currentRequestId;
     
     private final A2aAgent agent;
     
@@ -43,13 +43,13 @@ public class ClientEventContext {
     
     private Task task;
     
-    public ClientEventContext(String currentTaskId, A2aAgent agent) {
-        this.currentTaskId = currentTaskId;
+    public ClientEventContext(String currentRequestId, A2aAgent agent) {
+        this.currentRequestId = currentRequestId;
         this.agent = agent;
     }
     
-    public String getCurrentTaskId() {
-        return currentTaskId;
+    public String getCurrentRequestId() {
+        return currentRequestId;
     }
     
     public A2aAgent getAgent() {

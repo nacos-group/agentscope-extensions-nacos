@@ -57,7 +57,7 @@ public class ClientEventHandlerRouter {
     @SuppressWarnings("unchecked")
     public <T extends ClientEvent> void handle(T event, ClientEventContext context) {
         if (!handlers.containsKey(event.getClass())) {
-            LoggerUtil.debug(log, "[{}] No found handler for event {}, ignore this event", context.getCurrentTaskId(),
+            LoggerUtil.debug(log, "[{}] No found handler for event {}, ignore this event", context.getCurrentRequestId(),
                     event.getClass().getSimpleName());
             return;
         }
