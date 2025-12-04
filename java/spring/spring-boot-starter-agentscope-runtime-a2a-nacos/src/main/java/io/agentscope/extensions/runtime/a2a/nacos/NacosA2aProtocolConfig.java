@@ -43,9 +43,10 @@ public class NacosA2aProtocolConfig extends A2aProtocolConfig {
      */
     private final String overwritePreferredTransport;
     
-    public NacosA2aProtocolConfig(ConfigurableAgentCard agentCard, Properties nacosProperties, boolean registerAsLatest,
+    public NacosA2aProtocolConfig(ConfigurableAgentCard agentCard, int agentCompletionTimeoutSeconds,
+            int consumptionCompletionTimeoutSeconds, Properties nacosProperties, boolean registerAsLatest,
             boolean enabledRegisterEndpoint, String overwritePreferredTransport) {
-        super(agentCard);
+        super(agentCard, agentCompletionTimeoutSeconds, consumptionCompletionTimeoutSeconds);
         this.nacosProperties = nacosProperties;
         this.registerAsLatest = registerAsLatest;
         this.enabledRegisterEndpoint = enabledRegisterEndpoint;
@@ -97,8 +98,22 @@ public class NacosA2aProtocolConfig extends A2aProtocolConfig {
             return this;
         }
         
+        @Override
         public NacosA2aProtocolConfig.Builder agentCard(ConfigurableAgentCard agentCard) {
             super.agentCard(agentCard);
+            return this;
+        }
+        
+        @Override
+        public NacosA2aProtocolConfig.Builder agentCompletionTimeoutSeconds(int agentCompletionTimeoutSeconds) {
+            super.agentCompletionTimeoutSeconds(agentCompletionTimeoutSeconds);
+            return this;
+        }
+        
+        @Override
+        public NacosA2aProtocolConfig.Builder consumptionCompletionTimeoutSeconds(
+                int consumptionCompletionTimeoutSeconds) {
+            super.consumptionCompletionTimeoutSeconds(consumptionCompletionTimeoutSeconds);
             return this;
         }
         
@@ -107,7 +122,8 @@ public class NacosA2aProtocolConfig extends A2aProtocolConfig {
             if (null == nacosProperties) {
                 throw new IllegalArgumentException("Nacos properties can not be null");
             }
-            return new NacosA2aProtocolConfig(agentCard, nacosProperties, registerAsLatest, enabledRegisterEndpoint,
+            return new NacosA2aProtocolConfig(agentCard, agentCompletionTimeoutSeconds,
+                    consumptionCompletionTimeoutSeconds, nacosProperties, registerAsLatest, enabledRegisterEndpoint,
                     overwritePreferredTransport);
         }
     }
