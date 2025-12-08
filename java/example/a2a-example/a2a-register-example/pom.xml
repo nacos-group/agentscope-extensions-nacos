@@ -33,7 +33,7 @@
         
         <revision>1.0.0-SNAPSHOT</revision>
         <agentscope.version>1.0.0</agentscope.version>
-        <agentscope-runtime.version>1.0.0-SNAPSHOT</agentscope-runtime.version>
+        <agentscope-runtime.version>1.0.0-BETA1</agentscope-runtime.version>
         <agentscope-extensions.version>${revision}</agentscope-extensions.version>
         <spring-boot.version>3.5.7</spring-boot.version>
     </properties>
