@@ -18,19 +18,19 @@ package io.agentscope.extensions.a2a.agent.message;
 
 import io.a2a.spec.Part;
 import io.a2a.spec.TextPart;
-import io.agentscope.core.message.TextBlock;
+import io.agentscope.core.message.ThinkingBlock;
 import io.agentscope.extensions.a2a.agent.utils.MessageConvertUtil;
 
 /**
- * Parser for {@link TextBlock} to {@link io.a2a.spec.TextPart}.
+ * Parser for {@link ThinkingBlock} to {@link TextPart}.
  *
  * @author xiweng.yy
  */
-public class TextBlockParser implements ContentBlockParser<TextBlock> {
+public class ThinkingBlockParser implements ContentBlockParser<ThinkingBlock> {
     
     @Override
-    public Part<?> parse(TextBlock contentBlock) {
-        return new TextPart(contentBlock.getText(),
-                MessageConvertUtil.buildTypeMetadata(MessageConstants.BlockContent.TYPE_TEXT));
+    public Part<?> parse(ThinkingBlock contentBlock) {
+        return new TextPart(contentBlock.getThinking(),
+                MessageConvertUtil.buildTypeMetadata(MessageConstants.BlockContent.TYPE_THINKING));
     }
 }

@@ -19,6 +19,7 @@ package io.agentscope.extensions.a2a.agent.message;
 import io.a2a.spec.Part;
 import io.agentscope.core.message.ContentBlock;
 import io.agentscope.core.message.TextBlock;
+import io.agentscope.core.message.ThinkingBlock;
 
 /**
  * The router for {@link ContentBlockParser} according to class type of {@link ContentBlock}.
@@ -40,6 +41,8 @@ public class ContentBlockParserRouter {
         // TODO current only support text type.
         if (contentBlock instanceof TextBlock textBlock) {
             return new TextBlockParser().parse(textBlock);
+        } else if (contentBlock instanceof ThinkingBlock thinkingBlock) {
+            return new ThinkingBlockParser().parse(thinkingBlock);
         }
         return null;
     }

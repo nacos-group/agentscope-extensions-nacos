@@ -19,6 +19,8 @@ package io.agentscope.extensions.a2a.agent.message;
 import io.a2a.spec.TextPart;
 import io.agentscope.core.message.ContentBlock;
 import io.agentscope.core.message.TextBlock;
+import io.agentscope.core.message.ThinkingBlock;
+import io.agentscope.extensions.a2a.agent.utils.MessageConvertUtil;
 
 /**
  * Parser for {@link io.a2a.spec.TextPart} to {@link io.agentscope.core.message.TextBlock} or
@@ -30,7 +32,21 @@ public class TextPartParser implements PartParser<TextPart> {
     
     @Override
     public ContentBlock parse(TextPart part) {
-        // TODO, current only support text type.
+        if (isThinkingBlock(part)) {
+            ThinkingBlock.builder().thinking(part.getText()).build();
+        }
         return TextBlock.builder().text(part.getText()).build();
+    }
+    
+    private boolean isThinkingBlock(TextPart part) {
+        if (null == part.getMetadata()) {
+            return true;
+        }
+        if (part.getMetadata().isEmpty() || !part.getMetadata()
+                .containsKey(MessageConvertUtil.BLOCK_TYPE_METADATA_KEY)) {
+            return true;
+        }
+        return MessageConstants.BlockContent.TYPE_THINKING.equals(
+                part.getMetadata().get(MessageConvertUtil.BLOCK_TYPE_METADATA_KEY));
     }
 }

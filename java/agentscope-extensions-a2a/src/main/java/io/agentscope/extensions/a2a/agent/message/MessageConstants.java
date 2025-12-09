@@ -16,21 +16,27 @@
 
 package io.agentscope.extensions.a2a.agent.message;
 
-import io.a2a.spec.Part;
-import io.a2a.spec.TextPart;
-import io.agentscope.core.message.TextBlock;
-import io.agentscope.extensions.a2a.agent.utils.MessageConvertUtil;
-
 /**
- * Parser for {@link TextBlock} to {@link io.a2a.spec.TextPart}.
+ * Message Constants.
  *
  * @author xiweng.yy
  */
-public class TextBlockParser implements ContentBlockParser<TextBlock> {
+public class MessageConstants {
     
-    @Override
-    public Part<?> parse(TextBlock contentBlock) {
-        return new TextPart(contentBlock.getText(),
-                MessageConvertUtil.buildTypeMetadata(MessageConstants.BlockContent.TYPE_TEXT));
+    public static class BlockContent {
+        
+        public static final String TYPE_TEXT = "text";
+        
+        public static final String TYPE_THINKING = "thinking";
+        
+        public static final String TYPE_IMAGE = "image";
+        
+        public static final String TYPE_AUDIO = "audio";
+        
+        public static final String TYPE_VIDEO = "video";
+        
+        public static final String TYPE_TOOL_USE = "tool_use";
+        
+        public static final String TYPE_TOOL_RESULT = "tool_result";
     }
 }
