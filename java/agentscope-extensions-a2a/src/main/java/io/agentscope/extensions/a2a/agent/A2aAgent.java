@@ -35,9 +35,9 @@ import io.agentscope.core.interruption.InterruptContext;
 import io.agentscope.core.message.Msg;
 import io.agentscope.core.message.TextBlock;
 import io.agentscope.extensions.a2a.agent.card.AgentCardResolver;
+import io.agentscope.extensions.a2a.agent.card.FixedAgentCardResolver;
 import io.agentscope.extensions.a2a.agent.event.ClientEventContext;
 import io.agentscope.extensions.a2a.agent.event.ClientEventHandlerRouter;
-import io.agentscope.extensions.a2a.agent.utils.DateTimeSerializationUtil;
 import io.agentscope.extensions.a2a.agent.utils.LoggerUtil;
 import io.agentscope.extensions.a2a.agent.utils.MessageConvertUtil;
 import org.slf4j.Logger;
@@ -59,8 +59,7 @@ import java.util.function.BiConsumer;
  *
  *  // Auto get AgentCard
  *  AgentCardProducer agentCardProducer = new WellKnownAgentCardProducer("http://127.0.0.1:8080", "/.well-known/agent-card.json", Map.of());
- *  A2aAgentConfig a2aAgentConfig = A2aAgentConfig.builder().agentCardProducer(agentCardProducer).build()
- *  A2aAgent a2aAgent = new A2aAgent("remote-agent-name", a2aAgentConfig);
+ *  A2aAgent a2aAgent = new A2aAgent("remote-agent-name", agentCardProducer);
  * }</pre>
  *
  * @author xiweng.yy
@@ -70,6 +69,8 @@ public class A2aAgent extends AgentBase {
     private static final Logger log = LoggerFactory.getLogger(A2aAgent.class);
     
     private static final String INTERRUPT_HINT_PATTERN = "Task %s interrupt successfully.";
+    
+    private final AgentCardResolver agentCardResolver;
     
     private final A2aAgentConfig a2aAgentConfig;
     
@@ -88,31 +89,32 @@ public class A2aAgent extends AgentBase {
     private ClientEventContext clientEventContext;
     
     public A2aAgent(String name, AgentCard agentCard) {
-        this(name, new A2aAgentConfig.A2aAgentConfigBuilder().agentCard(agentCard).build());
+        this(name, FixedAgentCardResolver.builder().agentCard(agentCard).build());
     }
     
-    public A2aAgent(String name, A2aAgentConfig a2aAgentConfig) {
-        this(name, a2aAgentConfig, null);
+    public A2aAgent(String name, AgentCardResolver agentCardResolver) {
+        this(name, agentCardResolver, A2aAgentConfig.builder().build());
     }
     
-    public A2aAgent(String name, A2aAgentConfig a2aAgentConfig, List<Hook> hooks) {
+    public A2aAgent(String name, AgentCardResolver agentCardResolver, A2aAgentConfig a2aAgentConfig) {
+        this(name, agentCardResolver, a2aAgentConfig, null);
+    }
+    
+    public A2aAgent(String name, AgentCardResolver agentCardResolver, A2aAgentConfig a2aAgentConfig, List<Hook> hooks) {
         super(name, null, hooks);
         this.a2aAgentConfig = a2aAgentConfig;
-        LoggerUtil.debug(log, "A2aAgent init with config: {}", a2aAgentConfig);
-        getHooks().add(new A2aClientLifecycleHook());
-        AgentCardResolver agentCardResolver = a2aAgentConfig.agentCardResolver();
         if (null == agentCardResolver) {
             throw new IllegalArgumentException("AgentCardProducer cannot be null");
         }
-        if (a2aAgentConfig.adaptOldVersionA2aDateTimeSerialization()) {
-            DateTimeSerializationUtil.adaptOldVersionA2aDateTimeSerialization();
-        }
+        this.agentCardResolver = agentCardResolver;
+        LoggerUtil.debug(log, "A2aAgent init with config: {}", a2aAgentConfig);
+        getHooks().add(new A2aClientLifecycleHook());
         this.clientEventHandlerRouter = new ClientEventHandlerRouter();
     }
     
     @Override
     public String getDescription() {
-        return a2aAgentConfig.agentCardResolver().getAgentCard(getName()).description();
+        return agentCardResolver.getAgentCard(getName()).description();
     }
     
     @Override
@@ -160,13 +162,14 @@ public class A2aAgent extends AgentBase {
     }
     
     private Client buildA2aClient(String name) {
-        ClientBuilder builder = Client.builder(this.a2aAgentConfig.agentCardResolver().getAgentCard(name));
+        ClientBuilder builder = Client.builder(this.agentCardResolver.getAgentCard(name));
         if (this.a2aAgentConfig.clientTransports().isEmpty()) {
             // Default Add The Basic JSON-RPC Transport
             builder.withTransport(JSONRPCTransport.class, new JSONRPCTransportConfig());
         } else {
             this.a2aAgentConfig.clientTransports().forEach(builder::withTransport);
         }
+        builder.clientConfig(this.a2aAgentConfig.clientConfig());
         return builder.build();
     }
     
@@ -192,7 +195,7 @@ public class A2aAgent extends AgentBase {
                 clientEventContext = new ClientEventContext(currentRequestId, A2aAgent.this);
                 a2aClient = buildA2aClient(preCallEvent.getAgent().getName());
                 LoggerUtil.debug(log, "[{}] A2aAgent build A2a Client with Agent Card: {}.", currentRequestId,
-                        a2aAgentConfig.agentCardResolver().getAgentCard(getName()));
+                        agentCardResolver.getAgentCard(getName()));
             } else if (event instanceof PostCallEvent) {
                 tryReleaseResource();
             } else if (event instanceof ErrorEvent errorEvent) {
