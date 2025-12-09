@@ -59,6 +59,13 @@
             <groupId>io.agentscope</groupId>
             <artifactId>agentscope-runtime-agentscope</artifactId>
             <version>${agentscope-runtime.version}</version>
+            <exclusions>
+                <!-- found conflict for jackson-annotation with core and runtime -->
+                <exclusion>
+                    <groupId>com.fasterxml.jackson.core</groupId>
+                    <artifactId>jackson-annotations</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         
         <dependency>

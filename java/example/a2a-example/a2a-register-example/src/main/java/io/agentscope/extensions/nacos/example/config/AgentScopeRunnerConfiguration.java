@@ -16,8 +16,9 @@
 
 package io.agentscope.extensions.nacos.example.config;
 
+import io.agentscope.runtime.adapters.agentscope.AgentScopeAgentHandler;
+import io.agentscope.runtime.app.AgentApp;
 import io.agentscope.runtime.engine.Runner;
-import io.agentscope.runtime.engine.agents.agentscope.AgentScopeAgent;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -25,7 +26,8 @@ import org.springframework.context.annotation.Configuration;
 public class AgentScopeRunnerConfiguration {
     
     @Bean
-    public Runner runner(AgentScopeAgent agent) {
-        return Runner.builder().agent(agent).build();
+    public Runner runner(AgentScopeAgentHandler agentScopeAgentHandler) {
+        AgentApp agentApp = new AgentApp(agentScopeAgentHandler);
+        return agentApp.buildRunner().getRunner();
     }
 }
