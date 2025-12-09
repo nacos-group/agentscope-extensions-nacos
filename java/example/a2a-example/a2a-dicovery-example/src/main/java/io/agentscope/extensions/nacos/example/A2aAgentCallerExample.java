@@ -43,7 +43,8 @@ public class A2aAgentCallerExample {
     public static void main(String[] args) throws NacosException {
         AiService aiService = buildNacosAiClient();
         AgentCardResolver agentCardResolver = new NacosAgentCardResolver(aiService);
-        A2aAgent agent = new A2aAgent("agentscope-a2a-example-agent", agentCardResolver);
+        A2aAgent agent = A2aAgent.builder().name("agentscope-a2a-example-agent").agentCardResolver(agentCardResolver)
+                .build();
         startExample(agent);
     }
     
