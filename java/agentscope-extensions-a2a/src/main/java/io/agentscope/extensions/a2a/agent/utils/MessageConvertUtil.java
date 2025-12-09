@@ -72,6 +72,7 @@ public class MessageConvertUtil {
         artifacts.stream().filter(Objects::nonNull).filter(artifact -> isNotEmptyCollection(artifact.parts()))
                 .forEach(artifact -> {
                     builder.id(artifact.artifactId());
+                    // TODO agentscope msg name might be agent name.
                     builder.name(artifact.name());
                     builder.metadata(artifact.metadata());
                     contentBlocks.addAll(convertFromParts(artifact.parts()));
@@ -88,26 +89,11 @@ public class MessageConvertUtil {
      * @return the converted Msg object
      */
     public static Msg convertFromMessage(Message message) {
-        return convertFromMessage(List.of(message));
-    }
-    
-    /**
-     * Convert a list of {@link io.a2a.spec.Message} to {@link io.agentscope.core.message.Msg}.
-     *
-     * @param messages the list of messages to convert
-     * @return the converted Msg object
-     */
-    public static Msg convertFromMessage(List<Message> messages) {
         Msg.Builder builder = Msg.builder();
-        List<ContentBlock> contentBlocks = new LinkedList<>();
-        messages.stream().filter(Objects::nonNull).filter(message -> isNotEmptyCollection(message.getParts()))
-                .forEach(message -> {
-                    builder.id(message.getMessageId());
-                    builder.metadata(null != message.getMetadata() ? message.getMetadata() : Map.of());
-                    contentBlocks.addAll(convertFromParts(message.getParts()));
-                });
+        builder.id(message.getMessageId());
+        builder.metadata(null != message.getMetadata() ? message.getMetadata() : Map.of());
         builder.role(MsgRole.ASSISTANT);
-        builder.content(contentBlocks);
+        builder.content(convertFromParts(message.getParts()));
         return builder.build();
     }
     
