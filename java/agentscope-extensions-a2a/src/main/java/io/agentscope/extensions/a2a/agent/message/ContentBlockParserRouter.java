@@ -18,6 +18,7 @@ package io.agentscope.extensions.a2a.agent.message;
 
 import io.a2a.spec.Part;
 import io.agentscope.core.message.ContentBlock;
+import io.agentscope.core.message.ImageBlock;
 import io.agentscope.core.message.TextBlock;
 import io.agentscope.core.message.ThinkingBlock;
 
@@ -43,6 +44,8 @@ public class ContentBlockParserRouter {
             return new TextBlockParser().parse(textBlock);
         } else if (contentBlock instanceof ThinkingBlock thinkingBlock) {
             return new ThinkingBlockParser().parse(thinkingBlock);
+        } else if (contentBlock instanceof ImageBlock imageBlock) {
+            return new ImageBlockParser().parse(imageBlock);
         }
         return null;
     }

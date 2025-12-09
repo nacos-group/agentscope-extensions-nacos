@@ -16,6 +16,7 @@
 
 package io.agentscope.extensions.a2a.agent.message;
 
+import io.a2a.spec.FilePart;
 import io.a2a.spec.Part;
 import io.a2a.spec.TextPart;
 import io.agentscope.core.message.ContentBlock;
@@ -42,6 +43,7 @@ public class PartParserRouter {
         // TODO current only support text type.
         return switch (part.getKind()) {
             case TEXT -> new TextPartParser().parse((TextPart) part);
+            case FILE -> new FilePartParser().parse((FilePart) part);
             default -> null;
         };
     }
