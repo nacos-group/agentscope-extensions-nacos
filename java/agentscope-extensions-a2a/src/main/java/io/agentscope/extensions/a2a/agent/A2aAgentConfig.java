@@ -19,8 +19,8 @@ package io.agentscope.extensions.a2a.agent;
 import io.a2a.client.transport.spi.ClientTransport;
 import io.a2a.client.transport.spi.ClientTransportConfig;
 import io.a2a.spec.AgentCard;
-import io.agentscope.extensions.a2a.agent.card.AgentCardProducer;
-import io.agentscope.extensions.a2a.agent.card.FixedAgentCardProducer;
+import io.agentscope.extensions.a2a.agent.card.AgentCardResolver;
+import io.agentscope.extensions.a2a.agent.card.FixedAgentCardResolver;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -30,12 +30,12 @@ import java.util.Map;
  *
  * @author xiweng.yy
  */
-public record A2aAgentConfig(AgentCardProducer agentCardProducer, boolean adaptOldVersionA2aDateTimeSerialization,
+public record A2aAgentConfig(AgentCardResolver agentCardResolver, boolean adaptOldVersionA2aDateTimeSerialization,
                              Map<Class, ClientTransportConfig> clientTransports) {
     
     public static class A2aAgentConfigBuilder {
         
-        private AgentCardProducer agentCardProducer;
+        private AgentCardResolver agentCardResolver;
         
         private boolean adaptOldVersionA2aDateTimeSerialization;
         
@@ -46,28 +46,28 @@ public record A2aAgentConfig(AgentCardProducer agentCardProducer, boolean adaptO
         }
         
         /**
-         * Fast build {@link FixedAgentCardProducer} and register to this config.
+         * Fast build {@link FixedAgentCardResolver} and register to this config.
          *
          * @param agentCard agent card of target remote A2A Agent
          * @return the current {@link A2aAgentConfigBuilder} instance for chaining calls
-         * @see #agentCardProducer()
+         * @see #agentCardResolver()
          */
         public A2aAgentConfigBuilder agentCard(AgentCard agentCard) {
-            this.agentCardProducer = FixedAgentCardProducer.builder().agentCard(agentCard).build();
+            this.agentCardResolver = FixedAgentCardResolver.builder().agentCard(agentCard).build();
             return this;
         }
         
         /**
-         * Set {@link AgentCardProducer} to this config which will be used to generate {@link AgentCard} to
+         * Set {@link AgentCardResolver} to this config which will be used to generate {@link AgentCard} to
          * {@link io.a2a.client.Client}.
          *
          * <p> It can be extended to support more ways to generate {@link AgentCard}.
          *
-         * @param agentCardProducer agent card producer of target remote A2A Agent
+         * @param agentCardResolver agent card producer of target remote A2A Agent
          * @return the current {@link A2aAgentConfigBuilder} instance for chaining calls
          */
-        public A2aAgentConfigBuilder agentCardProducer(AgentCardProducer agentCardProducer) {
-            this.agentCardProducer = agentCardProducer;
+        public A2aAgentConfigBuilder agentCardProducer(AgentCardResolver agentCardResolver) {
+            this.agentCardResolver = agentCardResolver;
             return this;
         }
         
@@ -103,7 +103,7 @@ public record A2aAgentConfig(AgentCardProducer agentCardProducer, boolean adaptO
         }
         
         public A2aAgentConfig build() {
-            return new A2aAgentConfig(agentCardProducer, adaptOldVersionA2aDateTimeSerialization,
+            return new A2aAgentConfig(agentCardResolver, adaptOldVersionA2aDateTimeSerialization,
                     this.clientTransports);
         }
     }

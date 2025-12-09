@@ -16,32 +16,21 @@
 
 package io.agentscope.extensions.a2a.agent.card;
 
-import io.a2a.A2A;
 import io.a2a.spec.AgentCard;
 
-import java.util.Map;
-
 /**
- * Agent Card Producer from well known url.
+ * The Resolver for AgentCard of A2A.
  *
  * @author xiweng.yy
  */
-public class WellKnownAgentCardProducer implements AgentCardProducer {
+public interface AgentCardResolver {
     
-    private final String wellKnownUrl;
+    /**
+     * Produce AgentCard for target agent name.
+     *
+     * @param agentName name of agent
+     * @return {@link AgentCard}
+     */
+    AgentCard getAgentCard(String agentName);
     
-    private final String relativeCardPath;
-    
-    private final Map<String, String> authHeaders;
-    
-    public WellKnownAgentCardProducer(String wellKnownUrl, String relativeCardPath, Map<String, String> authHeaders) {
-        this.wellKnownUrl = wellKnownUrl;
-        this.relativeCardPath = relativeCardPath;
-        this.authHeaders = authHeaders;
-    }
-    
-    @Override
-    public AgentCard produce(String agentName) {
-        return A2A.getAgentCard(wellKnownUrl, relativeCardPath, authHeaders);
-    }
 }

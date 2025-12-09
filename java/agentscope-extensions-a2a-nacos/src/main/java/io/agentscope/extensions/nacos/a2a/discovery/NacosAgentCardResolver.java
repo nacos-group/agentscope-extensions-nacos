@@ -24,7 +24,7 @@ import com.alibaba.nacos.api.ai.model.a2a.AgentCardDetailInfo;
 import com.alibaba.nacos.api.exception.NacosException;
 import com.alibaba.nacos.api.exception.runtime.NacosRuntimeException;
 import io.a2a.spec.AgentCard;
-import io.agentscope.extensions.a2a.agent.card.AgentCardProducer;
+import io.agentscope.extensions.a2a.agent.card.AgentCardResolver;
 import io.agentscope.extensions.nacos.a2a.utils.AgentCardConverterUtil;
 
 import java.util.Map;
@@ -58,7 +58,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * @see io.agentscope.extensions.a2a.agent.A2aAgentConfig.A2aAgentConfigBuilder
  * @author xiweng.yy
  */
-public class NacosAgentCardProducer implements AgentCardProducer {
+public class NacosAgentCardResolver implements AgentCardResolver {
     
     private final AiService aiService;
     
@@ -66,18 +66,18 @@ public class NacosAgentCardProducer implements AgentCardProducer {
     
     private final Map<String, AgentCardUpdater> agentCardUpdaters;
     
-    public NacosAgentCardProducer(Properties properties) throws NacosException {
+    public NacosAgentCardResolver(Properties properties) throws NacosException {
         this(AiFactory.createAiService(properties));
     }
     
-    public NacosAgentCardProducer(AiService aiService) {
+    public NacosAgentCardResolver(AiService aiService) {
         this.aiService = aiService;
         this.agentCardCaches = new ConcurrentHashMap<>(2);
         this.agentCardUpdaters = new ConcurrentHashMap<>(2);
     }
     
     @Override
-    public AgentCard produce(String agentName) {
+    public AgentCard getAgentCard(String agentName) {
         if (agentCardCaches.containsKey(agentName)) {
             return agentCardCaches.get(agentName);
         }

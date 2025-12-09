@@ -23,16 +23,16 @@ import io.a2a.spec.AgentCard;
  *
  * @author xiweng.yy
  */
-public class FixedAgentCardProducer implements AgentCardProducer {
+public class FixedAgentCardResolver implements AgentCardResolver {
     
     private final AgentCard agentCard;
     
-    private FixedAgentCardProducer(AgentCard agentCard) {
+    private FixedAgentCardResolver(AgentCard agentCard) {
         this.agentCard = agentCard;
     }
     
     @Override
-    public AgentCard produce(String agentName) {
+    public AgentCard getAgentCard(String agentName) {
         return agentCard;
     }
     
@@ -49,8 +49,8 @@ public class FixedAgentCardProducer implements AgentCardProducer {
             return this;
         }
         
-        public FixedAgentCardProducer build() {
-            return new FixedAgentCardProducer(agentCard);
+        public FixedAgentCardResolver build() {
+            return new FixedAgentCardResolver(agentCard);
         }
     }
 }

@@ -34,7 +34,7 @@ import io.agentscope.core.hook.PreCallEvent;
 import io.agentscope.core.interruption.InterruptContext;
 import io.agentscope.core.message.Msg;
 import io.agentscope.core.message.TextBlock;
-import io.agentscope.extensions.a2a.agent.card.AgentCardProducer;
+import io.agentscope.extensions.a2a.agent.card.AgentCardResolver;
 import io.agentscope.extensions.a2a.agent.event.ClientEventContext;
 import io.agentscope.extensions.a2a.agent.event.ClientEventHandlerRouter;
 import io.agentscope.extensions.a2a.agent.utils.DateTimeSerializationUtil;
@@ -100,8 +100,8 @@ public class A2aAgent extends AgentBase {
         this.a2aAgentConfig = a2aAgentConfig;
         LoggerUtil.debug(log, "A2aAgent init with config: {}", a2aAgentConfig);
         getHooks().add(new A2aClientLifecycleHook());
-        AgentCardProducer agentCardProducer = a2aAgentConfig.agentCardProducer();
-        if (null == agentCardProducer) {
+        AgentCardResolver agentCardResolver = a2aAgentConfig.agentCardResolver();
+        if (null == agentCardResolver) {
             throw new IllegalArgumentException("AgentCardProducer cannot be null");
         }
         if (a2aAgentConfig.adaptOldVersionA2aDateTimeSerialization()) {
@@ -112,7 +112,7 @@ public class A2aAgent extends AgentBase {
     
     @Override
     public String getDescription() {
-        return a2aAgentConfig.agentCardProducer().produce(getName()).description();
+        return a2aAgentConfig.agentCardResolver().getAgentCard(getName()).description();
     }
     
     @Override
@@ -160,7 +160,7 @@ public class A2aAgent extends AgentBase {
     }
     
     private Client buildA2aClient(String name) {
-        ClientBuilder builder = Client.builder(this.a2aAgentConfig.agentCardProducer().produce(name));
+        ClientBuilder builder = Client.builder(this.a2aAgentConfig.agentCardResolver().getAgentCard(name));
         if (this.a2aAgentConfig.clientTransports().isEmpty()) {
             // Default Add The Basic JSON-RPC Transport
             builder.withTransport(JSONRPCTransport.class, new JSONRPCTransportConfig());
@@ -192,7 +192,7 @@ public class A2aAgent extends AgentBase {
                 clientEventContext = new ClientEventContext(currentRequestId, A2aAgent.this);
                 a2aClient = buildA2aClient(preCallEvent.getAgent().getName());
                 LoggerUtil.debug(log, "[{}] A2aAgent build A2a Client with Agent Card: {}.", currentRequestId,
-                        a2aAgentConfig.agentCardProducer().produce(getName()));
+                        a2aAgentConfig.agentCardResolver().getAgentCard(getName()));
             } else if (event instanceof PostCallEvent) {
                 tryReleaseResource();
             } else if (event instanceof ErrorEvent errorEvent) {
