@@ -40,6 +40,12 @@ import java.util.Objects;
  */
 public class MessageConvertUtil {
     
+    public static final String SOURCE_NAME_METADATA_KEY = "_agentscope_msg_source";
+    
+    public static final String MSG_ID_METADATA_KEY = "_agentscope_msg_id";
+    
+    public static final String BLOCK_TYPE_METADATA_KEY = "_agentscope_block_type";
+    
     private static final PartParserRouter PART_PARSER = new PartParserRouter();
     
     private static final ContentBlockParserRouter CONTENT_BLOCK_PARSER = new ContentBlockParserRouter();
@@ -116,8 +122,14 @@ public class MessageConvertUtil {
         Map<String, Object> metadata = new HashMap<>();
         List<Part<?>> parts = new LinkedList<>();
         msgs.stream().filter(Objects::nonNull).filter(msg -> isNotEmptyCollection(msg.getContent())).forEach(msg -> {
-            metadata.putAll(null != msg.getMetadata() ? msg.getMetadata() : Map.of());
-            parts.addAll(msg.getContent().stream().map(CONTENT_BLOCK_PARSER::parse).filter(Objects::nonNull).toList());
+            if (null != msg.getMetadata() && !msg.getMetadata().isEmpty()) {
+                metadata.put(msg.getId(), msg.getMetadata());
+            }
+            parts.addAll(
+                    msg.getContent().stream().map(CONTENT_BLOCK_PARSER::parse).filter(Objects::nonNull).peek(part -> {
+                        part.getMetadata().put(MSG_ID_METADATA_KEY, msg.getId());
+                        part.getMetadata().put(SOURCE_NAME_METADATA_KEY, msg.getName());
+                    }).toList());
         });
         return builder.parts(parts).metadata(metadata).role(Message.Role.USER).build();
     }
@@ -128,5 +140,17 @@ public class MessageConvertUtil {
     
     private static List<ContentBlock> convertFromParts(List<Part<?>> parts) {
         return parts.stream().map(PART_PARSER::parse).filter(Objects::nonNull).toList();
+    }
+    
+    /**
+     * Build metadata with content block type in {@link Part}.
+     *
+     * @param type the content block type, see {@link ContentBlock}.
+     * @return metadata with content block type.
+     */
+    public static Map<String, Object> buildTypeMetadata(String type) {
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put(BLOCK_TYPE_METADATA_KEY, type);
+        return metadata;
     }
 }

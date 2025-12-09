@@ -21,7 +21,8 @@ import io.agentscope.core.message.ContentBlock;
 import io.agentscope.core.message.TextBlock;
 
 /**
- * Parser for {@link io.a2a.spec.TextPart} to {@link io.agentscope.core.message.TextBlock}.
+ * Parser for {@link io.a2a.spec.TextPart} to {@link io.agentscope.core.message.TextBlock} or
+ * {@link io.agentscope.core.message.ThinkingBlock}.
  *
  * @author xiweng.yy
  */
@@ -29,6 +30,7 @@ public class TextPartParser implements PartParser<TextPart> {
     
     @Override
     public ContentBlock parse(TextPart part) {
+        // TODO, current only support text type.
         return TextBlock.builder().text(part.getText()).build();
     }
 }
