@@ -24,7 +24,7 @@ import com.alibaba.nacos.api.ai.model.a2a.AgentCardDetailInfo;
 import com.alibaba.nacos.api.ai.model.a2a.AgentEndpoint;
 import com.alibaba.nacos.api.exception.NacosException;
 import com.alibaba.nacos.api.exception.runtime.NacosRuntimeException;
-import io.agentscope.extensions.a2a.agent.utils.LoggerUtil;
+import io.agentscope.core.a2a.agent.utils.LoggerUtil;
 import io.agentscope.extensions.nacos.a2a.utils.AgentCardConverterUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

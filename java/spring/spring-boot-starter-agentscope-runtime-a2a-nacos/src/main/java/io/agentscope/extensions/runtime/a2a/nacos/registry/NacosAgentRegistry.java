@@ -20,7 +20,7 @@ import com.alibaba.nacos.api.ai.constant.AiConstants;
 import com.alibaba.nacos.common.utils.StringUtils;
 import io.a2a.spec.AgentCard;
 import io.a2a.spec.AgentInterface;
-import io.agentscope.extensions.a2a.agent.utils.LoggerUtil;
+import io.agentscope.core.a2a.agent.utils.LoggerUtil;
 import io.agentscope.extensions.nacos.a2a.registry.NacosA2aRegistry;
 import io.agentscope.extensions.nacos.a2a.registry.NacosA2aRegistryProperties;
 import io.agentscope.extensions.nacos.a2a.registry.NacosA2aRegistryTransportProperties;

@@ -24,8 +24,8 @@ import com.alibaba.nacos.common.utils.StringUtils;
 import io.agentscope.core.message.Msg;
 import io.agentscope.core.message.MsgRole;
 import io.agentscope.core.message.TextBlock;
-import io.agentscope.extensions.a2a.agent.A2aAgent;
-import io.agentscope.extensions.a2a.agent.card.AgentCardResolver;
+import io.agentscope.core.a2a.agent.A2aAgent;
+import io.agentscope.core.a2a.agent.card.AgentCardResolver;
 import io.agentscope.extensions.nacos.a2a.discovery.NacosAgentCardResolver;
 import reactor.core.publisher.Flux;
 
