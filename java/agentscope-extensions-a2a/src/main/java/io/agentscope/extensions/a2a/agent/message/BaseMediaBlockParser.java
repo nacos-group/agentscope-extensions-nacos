@@ -69,6 +69,8 @@ public abstract class BaseMediaBlockParser<T extends ContentBlock> implements Co
     /**
      * Parse the source from content block to a FilePart.
      *
+     * <p>If input source is unknown type, return null.
+     *
      * @param source the source to parse
      * @return the parsed FilePart
      */
