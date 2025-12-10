@@ -16,6 +16,7 @@
 
 package io.agentscope.extensions.a2a.agent.message;
 
+import io.a2a.spec.DataPart;
 import io.a2a.spec.FilePart;
 import io.a2a.spec.Part;
 import io.a2a.spec.TextPart;
@@ -43,7 +44,7 @@ public class PartParserRouter {
         return switch (part.getKind()) {
             case TEXT -> new TextPartParser().parse((TextPart) part);
             case FILE -> new FilePartParser().parse((FilePart) part);
-            default -> null;
+            case DATA -> new DataPartParser().parse((DataPart) part);
         };
     }
 }

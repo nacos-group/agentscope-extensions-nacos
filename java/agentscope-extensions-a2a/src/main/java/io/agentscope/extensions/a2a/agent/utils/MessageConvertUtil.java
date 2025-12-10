@@ -33,8 +33,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Message Converter between Agentscope {@link io.agentscope.core.message.Msg} and A2A {@link io.a2a.spec.Message} or
- * {@link io.a2a.spec.Artifact}.
+ * Message Converter between Agentscope {@link Msg} and A2A {@link Message} or {@link Artifact}.
  *
  * @author xiweng.yy
  */

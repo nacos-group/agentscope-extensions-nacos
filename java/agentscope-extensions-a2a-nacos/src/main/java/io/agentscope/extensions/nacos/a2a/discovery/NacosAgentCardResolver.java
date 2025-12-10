@@ -39,19 +39,18 @@ import java.util.concurrent.ConcurrentHashMap;
  *  Properties properties = new Properties();
  *  properties.put(PropertyKeyConst.SERVER_ADDR, "localhost:8848");
  *  // put other Nacos server properties
- *  // create NacosAgentCardProducer with new Nacos Client
- *  NacosAgentCardProducer nacosAgentCardProducer = new NacosAgentCardProducer(properties);
+ *  // create NacosAgentCardResolver with new Nacos Client
+ *  NacosAgentCardResolver nacosAgentCardResolver = new NacosAgentCardResolver(properties);
  *  // Equals like:
  *  // AiService a2aService = AiFactory.createAiService(properties);
- *  // NacosAgentCardProducer nacosAgentCardProducer = new NacosAgentCardProducer(a2aService)
+ *  // NacosAgentCardResolver nacosAgentCardResolver = new NacosAgentCardResolver(a2aService)
  *
  *  // Or Reuse Nacos Client
  *  AiService a2aService = getAiServiceFromCacheOrOtherComponent();
- *  NacosAgentCardProducer nacosAgentCardProducer = new NacosAgentCardProducer(a2aService);
+ *  NacosAgentCardResolver nacosAgentCardResolver = new NacosAgentCardResolver(a2aService);
  *
  *  // Then new A2aAgent
- *  A2aAgentConfig a2aAgentConfig = A2aAgentConfig.builder().agentCardProducer(nacosAgentCardProducer).build()
- *  A2aAgent a2aAgent = new A2aAgent("remote-agent-name", a2aAgentConfig);
+ *  A2aAgent a2aAgent = A2aAgent.builder().name("remote-agent-name").agentCardResolver(nacosAgentCardResolver).build();
  * }</pre>
  *
  * @see io.agentscope.extensions.a2a.agent.A2aAgent

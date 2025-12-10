@@ -20,8 +20,7 @@ import io.a2a.spec.Part;
 import io.agentscope.core.message.ContentBlock;
 
 /**
- * {@link io.agentscope.core.message.ContentBlock} parser interface, used to parse
- * {@link io.agentscope.core.message.ContentBlock} and convert to {@link io.a2a.spec.Part} .
+ * {@link ContentBlock} parser interface, used to parse {@link ContentBlock} and convert to {@link Part} .
  *
  * @author xiweng.yy
  */

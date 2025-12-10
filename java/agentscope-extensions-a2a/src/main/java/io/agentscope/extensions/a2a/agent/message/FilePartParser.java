@@ -29,7 +29,13 @@ import io.agentscope.core.message.URLSource;
 import io.agentscope.core.message.VideoBlock;
 
 /**
- * Parser for {@link FilePart} to {@link ImageBlock} or {@link AudioBlock} or {@link VideoBlock}.
+ * Parser for {@link FilePart} to {@link ContentBlock}.
+ *
+ * <ul>
+ *     <li>{@link FilePart} with mimeType is `image/*` parse to {@link ImageBlock}</li>
+ *     <li>{@link FilePart} with mimeType is `audio/*` parse to {@link AudioBlock}</li>
+ *     <li>{@link FilePart} with mimeType is `video/*` parse to {@link VideoBlock}</li>
+ * </ul>
  *
  * @author xiweng.yy
  */

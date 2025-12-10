@@ -22,7 +22,12 @@ import io.agentscope.core.message.ContentBlock;
 import io.agentscope.core.message.ImageBlock;
 import io.agentscope.core.message.TextBlock;
 import io.agentscope.core.message.ThinkingBlock;
+import io.agentscope.core.message.ToolResultBlock;
+import io.agentscope.core.message.ToolUseBlock;
 import io.agentscope.core.message.VideoBlock;
+import io.agentscope.extensions.a2a.agent.utils.LoggerUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * The router for {@link ContentBlockParser} according to class type of {@link ContentBlock}.
@@ -30,6 +35,8 @@ import io.agentscope.core.message.VideoBlock;
  * @author xiweng.yy
  */
 public class ContentBlockParserRouter {
+    
+    private static final Logger log = LoggerFactory.getLogger(ContentBlockParserRouter.class);
     
     /**
      * Parse {@link ContentBlock} to {@link Part}.
@@ -51,7 +58,13 @@ public class ContentBlockParserRouter {
             return new AudioBlockParser().parse(audioBlock);
         } else if (contentBlock instanceof VideoBlock videoBlock) {
             return new VideoBlockParser().parse(videoBlock);
+        } else if (contentBlock instanceof ToolUseBlock toolUseBlock) {
+            return new ToolUseBlockParser().parse(toolUseBlock);
+        } else if (contentBlock instanceof ToolResultBlock toolResultBlock) {
+            return new ToolResultBlockParser().parse(toolResultBlock);
         }
+        LoggerUtil.warn(log, "Unsupported content block type: {}, ignore this content block.",
+                contentBlock.getClass().getName());
         return null;
     }
 }
