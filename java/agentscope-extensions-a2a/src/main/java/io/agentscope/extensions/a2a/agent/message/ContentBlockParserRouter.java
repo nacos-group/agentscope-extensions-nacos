@@ -17,10 +17,12 @@
 package io.agentscope.extensions.a2a.agent.message;
 
 import io.a2a.spec.Part;
+import io.agentscope.core.message.AudioBlock;
 import io.agentscope.core.message.ContentBlock;
 import io.agentscope.core.message.ImageBlock;
 import io.agentscope.core.message.TextBlock;
 import io.agentscope.core.message.ThinkingBlock;
+import io.agentscope.core.message.VideoBlock;
 
 /**
  * The router for {@link ContentBlockParser} according to class type of {@link ContentBlock}.
@@ -39,13 +41,16 @@ public class ContentBlockParserRouter {
         if (null == contentBlock) {
             return null;
         }
-        // TODO current only support text type.
         if (contentBlock instanceof TextBlock textBlock) {
             return new TextBlockParser().parse(textBlock);
         } else if (contentBlock instanceof ThinkingBlock thinkingBlock) {
             return new ThinkingBlockParser().parse(thinkingBlock);
         } else if (contentBlock instanceof ImageBlock imageBlock) {
             return new ImageBlockParser().parse(imageBlock);
+        } else if (contentBlock instanceof AudioBlock audioBlock) {
+            return new AudioBlockParser().parse(audioBlock);
+        } else if (contentBlock instanceof VideoBlock videoBlock) {
+            return new VideoBlockParser().parse(videoBlock);
         }
         return null;
     }

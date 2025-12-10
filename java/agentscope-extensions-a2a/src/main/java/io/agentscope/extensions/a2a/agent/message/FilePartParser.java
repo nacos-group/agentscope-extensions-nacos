@@ -40,12 +40,26 @@ public class FilePartParser implements PartParser<FilePart> {
         FileContent file = part.getFile();
         return switch (getPrimaryType(file.mimeType())) {
             case MessageConstants.BlockContent.TYPE_IMAGE -> parseToImageBlock(file);
+            case MessageConstants.BlockContent.TYPE_AUDIO -> parseToAudioBlock(file);
+            case MessageConstants.BlockContent.TYPE_VIDEO -> parseToVideoBlock(file);
             default -> null;
         };
     }
     
     private ImageBlock parseToImageBlock(FileContent file) {
         ImageBlock.Builder builder = ImageBlock.builder();
+        Source source = buildSource(file);
+        return source != null ? builder.source(source).build() : null;
+    }
+    
+    private AudioBlock parseToAudioBlock(FileContent file) {
+        AudioBlock.Builder builder = AudioBlock.builder();
+        Source source = buildSource(file);
+        return source != null ? builder.source(source).build() : null;
+    }
+    
+    private VideoBlock parseToVideoBlock(FileContent file) {
+        VideoBlock.Builder builder = VideoBlock.builder();
         Source source = buildSource(file);
         return source != null ? builder.source(source).build() : null;
     }

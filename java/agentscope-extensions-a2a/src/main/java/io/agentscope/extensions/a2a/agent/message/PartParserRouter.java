@@ -40,7 +40,6 @@ public class PartParserRouter {
         if (null == part) {
             return null;
         }
-        // TODO current only support text type.
         return switch (part.getKind()) {
             case TEXT -> new TextPartParser().parse((TextPart) part);
             case FILE -> new FilePartParser().parse((FilePart) part);

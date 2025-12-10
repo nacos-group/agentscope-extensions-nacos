@@ -17,22 +17,22 @@
 package io.agentscope.extensions.a2a.agent.message;
 
 import io.a2a.spec.Part;
-import io.agentscope.core.message.ImageBlock;
+import io.agentscope.core.message.AudioBlock;
 
 /**
- * Parser for {@link ImageBlock} to {@link io.a2a.spec.FilePart}.
+ * Parser for {@link AudioBlock} to {@link io.a2a.spec.FilePart}.
  *
  * @author xiweng.yy
  */
-public class ImageBlockParser extends BaseMediaBlockParser<ImageBlock> {
+public class AudioBlockParser extends BaseMediaBlockParser<AudioBlock> {
     
     @Override
     protected String getMediaType() {
-        return MessageConstants.BlockContent.TYPE_IMAGE;
+        return MessageConstants.BlockContent.TYPE_AUDIO;
     }
     
     @Override
-    public Part<?> parse(ImageBlock contentBlock) {
+    public Part<?> parse(AudioBlock contentBlock) {
         return parseSource(contentBlock.getSource());
     }
 }
