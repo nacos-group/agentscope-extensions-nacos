@@ -3,14 +3,14 @@
 A2A Protocol with Nacos Service Discovery Example
 
 This example demonstrates A2A protocol with Nacos service discovery
-using A2AFastAPIDefaultAdapter with NacosRegistry.
+using AgentCardWithRuntimeConfig - a flat configuration approach that
+extends AgentCard with runtime-specific fields.
 
-This example showcases important A2A configuration options including:
-- AgentCard configuration (name, version, transport, skills, etc.)
-- Task timeout settings
-- Wellknown endpoint configuration
-- Transport configurations for multiple interfaces
-- Registry integration with Nacos
+Key Features:
+- Flat configuration: All AgentCard fields + runtime fields in one object
+- AgentCard inheritance: Automatically inherits all A2A protocol fields
+- Runtime fields: registry, transports, task_timeout, etc.
+- No nested config objects needed
 
 Usage:
     python app_nacos_a2a.py
@@ -36,20 +36,16 @@ from agentscope.formatter import DashScopeChatFormatter
 from agentscope.model import DashScopeChatModel
 from agentscope.pipeline import stream_printing_messages
 from agentscope.tool import Toolkit, execute_python_code
-from a2a.types import AgentSkill
+from a2a.types import AgentSkill, AgentCapabilities
 from v2.nacos import ClientConfigBuilder
 
 from agentscope_runtime.adapters.agentscope.memory import (
     AgentScopeSessionHistoryMemory,
 )
 from agentscope_runtime.engine.app import AgentApp
+# pylint: disable=no-name-in-module
 from agentscope_runtime.engine.deployers.adapter.a2a import (
-    A2AFastAPIDefaultAdapter,
-    A2AConfig,
-    AgentCardConfig,
-    TaskConfig,
-    WellknownConfig,
-    TransportsConfig,
+    AgentCardWithRuntimeConfig,
     NacosRegistry,
 )
 from agentscope_runtime.engine.deployers.local_deployer import (
@@ -67,7 +63,7 @@ from agentscope_runtime.engine.services.session_history import (
 
 # Setup project paths
 _file_path = Path(__file__).resolve()
-# example/a2a/app_nacos_a2a_example.py -> example/a2a -> example -> python
+# example/a2a/app_nacos_a2a.py -> example/a2a -> example -> python
 project_root = _file_path.parent.parent.parent
 
 # Load environment variables from .env file
@@ -81,7 +77,7 @@ if env_file.exists():
     print(f"  NACOS_USERNAME={os.getenv('NACOS_USERNAME', 'NOT SET')}")
 else:
     print(f"✗ Warning: .env file not found at {env_file}")
-    print(f"  Will use default values or system environment variables")
+    print("  Will use default values or system environment variables")
 
 # Configure logging
 logging.basicConfig(
@@ -136,7 +132,7 @@ nacos_username = os.getenv("NACOS_USERNAME")
 nacos_password = os.getenv("NACOS_PASSWORD")
 nacos_namespace_id = os.getenv("NACOS_NAMESPACE_ID", "public")
 
-print(f"Nacos configuration:")
+print("Nacos configuration:")
 print(f"  Server: {nacos_server_addr}")
 print(f"  Namespace: {nacos_namespace_id}")
 print(f"  Auth: {'enabled' if nacos_username else 'disabled'}")
@@ -151,40 +147,46 @@ if nacos_username and nacos_password:
 nacos_client_config = builder.build()
 nacos_registry = NacosRegistry(nacos_client_config=nacos_client_config)
 
-# Configure A2A protocol with a2a_config
-a2a_config = A2AConfig(
-    registry=nacos_registry,
-    agent_card=AgentCardConfig(
-        card_name=AGENT_NAME,
-        card_version="1.0.0",
-        preferred_transport="JSONRPC",
-        skills=create_agent_skills(),
-        default_input_modes=["text"],
-        default_output_modes=["text"],
-        provider={
-            "organization": "AgentScope Runtime",
-            "url": "https://runtime.agentscope.io",
+# Configure A2A protocol with AgentCardWithRuntimeConfig
+# This is a flat configuration that combines:
+# - AgentCard protocol fields (name, version, skills, etc.)
+# - Runtime-specific fields (registry, transports, task_timeout, etc.)
+a2a_config = AgentCardWithRuntimeConfig(
+    # === AgentCard Protocol Fields ===
+    # These will be published to Nacos and exposed via wellknown endpoint
+    name=AGENT_NAME,
+    version="1.0.0",
+    description=AGENT_DESCRIPTION,
+    url=f"http://{DEFAULT_HOST}:{DEFAULT_PORT}/a2a",
+    preferredTransport="JSONRPC",
+    capabilities=AgentCapabilities(
+        streaming=True,
+        push_notifications=False,
+    ),
+    skills=create_agent_skills(),
+    defaultInputModes=["text"],
+    defaultOutputModes=["text"],
+    provider={
+        "organization": "AgentScope Runtime",
+        "url": "https://runtime.agentscope.io",
+    },
+    documentUrl="https://runtime.agentscope.io",
+    # === Runtime-Specific Fields ===
+    # These will NOT be published - only used internally by runtime
+    registry=[nacos_registry],
+    transports=[
+        {
+            "name": "JSONRPC",
+            "url": f"http://{DEFAULT_HOST}:{DEFAULT_PORT}/a2a",
+            "rootPath": "/",
+            "subPath": "/a2a",
+            "tls": False,
         },
-        document_url="https://runtime.agentscope.io",
-    ),
-    task=TaskConfig(
-        task_timeout=60,
-        task_event_timeout=10,
-    ),
-    wellknown=WellknownConfig(
-        wellknown_path="/.wellknown/agent-card.json",
-    ),
-    transports=TransportsConfig(
-        transports=[
-            {
-                "name": "JSONRPC",
-                "url": f"http://{DEFAULT_HOST}:{DEFAULT_PORT}/a2a",
-                "rootPath": "/",
-                "subPath": "/a2a",
-                "tls": False,
-            },
-        ],
-    ),
+    ],
+    task_timeout=60,
+    task_event_timeout=10,
+    wellknown_path="/.wellknown/agent-card.json",
+    base_url=f"http://{DEFAULT_HOST}:{DEFAULT_PORT}",
 )
 
 agent_app = AgentApp(
@@ -268,20 +270,10 @@ async def query_func(
 
 async def main():
     """Main deployment function."""
-    # AgentApp is already initialized with a2a_config
+    # AgentApp is already initialized with a2a_runtime_config
     # The A2A adapter is automatically created by AgentApp
-    # We need to set the base_url for the adapter so it can
-    # build correct agent card URL and register with the correct
-    # host/port in Nacos
-
-    a2a_adapter = agent_app.protocol_adapters[0]
-    if isinstance(a2a_adapter, A2AFastAPIDefaultAdapter):
-        # Set base_url for the adapter to build correct
-        # agent card URL. This is used when registering with
-        # Nacos registry
-        a2a_adapter._base_url = (  # pylint: disable=protected-access
-            f"http://{DEFAULT_HOST}:{DEFAULT_PORT}"
-        )
+    # base_url is already set in AgentCardWithRuntimeConfig,
+    # so no need to manually set it on the adapter
 
     deploy_manager = LocalDeployManager(
         host=DEFAULT_HOST,

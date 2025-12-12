@@ -16,7 +16,12 @@ from agentscope_runtime.engine.deployers.adapter.protocol_adapter import Protoco
 from a2a.server.apps import A2AFastAPIApplication
 from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.tasks import InMemoryTaskStore
-from a2a.types import AgentCard, AgentCapabilities, AgentSkill
+from a2a.types import (
+    AgentCard,
+    AgentCapabilities,
+    AgentSkill,
+    AgentProvider,
+)
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
@@ -26,7 +31,6 @@ from .a2a_registry import (
     A2ARegistry,
     DeployProperties,
     A2ATransportsProperties,
-    create_registry_from_env,
 )
 
 # NOTE: Do NOT import NacosRegistry at module import time to avoid
@@ -69,7 +73,7 @@ class A2AFastAPIExtensionAdapter(ProtocolAdapter):
         skills: Optional[List[AgentSkill]] = None,
         default_input_modes: Optional[List[str]] = None,
         default_output_modes: Optional[List[str]] = None,
-        provider: Optional[Union[str, Dict[str, Any]]] = None,
+        provider: Optional[Union[str, Dict[str, Any], AgentProvider]] = None,
         document_url: Optional[str] = None,
         icon_url: Optional[str] = None,
         security_schema: Optional[Dict[str, Any]] = None,
@@ -88,7 +92,7 @@ class A2AFastAPIExtensionAdapter(ProtocolAdapter):
         Args:
             agent_name: Agent name (default for card_name)
             agent_description: Agent description (default for card_description)
-            registry: Optional A2A registry or list of registries
+            registry: Optional A2A registry or list of registry instances
                 for service discovery. If None, registry operations
                 will be skipped.
             card_name: Override agent card name
@@ -121,71 +125,53 @@ class A2AFastAPIExtensionAdapter(ProtocolAdapter):
         self._json_rpc_path = kwargs.get("json_rpc_path", A2A_JSON_RPC_URL)
         self._base_url = kwargs.get("base_url")
 
-        # Extract registry with priority: explicit parameter > environment variables
-        # If registry is explicitly provided (not None), use it
-        # Otherwise, try to load from environment variables via create_registry_from_env()
-        if registry is not None:
-            # User explicitly provided registry (highest priority)
-            logger.debug("[A2A] Using registry from explicit parameter")
-            if isinstance(registry, A2ARegistry):
-                self._registries: List[A2ARegistry] = [registry]
+        # Convert registry to list for uniform handling
+        # Registry is optional: if None, skip registry operations
+        if registry is None:
+            self._registry: List[A2ARegistry] = []
+        elif isinstance(registry, A2ARegistry):
+            self._registry = [registry]
+        else:
+            # Accept any iterable; validate members for duck-typed
+            # registry interface
+            try:
+                regs = list(registry)
+            except Exception:
+                logger.warning(
+                    "[A2A] Provided registry is not iterable; ignoring",
+                )
+                self._registry = []
             else:
-                # Accept any iterable; validate members for duck-typed
-                # registry interface
-                try:
-                    regs = list(registry)
-                except Exception:
-                    logger.warning(
-                        "[A2A] Provided registry is not iterable; ignoring",
-                    )
-                    self._registries = []
-                else:
-                    valid_regs: List[A2ARegistry] = []
-                    for r in regs:
-                        # Accept objects that implement required methods
-                        # (duck typing) Verify both existence and
-                        # callability to prevent runtime errors
-                        has_register = hasattr(r, "register")
-                        has_registry_name = hasattr(r, "registry_name")
-                        if has_register and has_registry_name:
-                            register_callable = callable(
-                                getattr(r, "register", None),
-                            )
-                            registry_name_callable = callable(
-                                getattr(r, "registry_name", None),
-                            )
-                            if register_callable and (registry_name_callable):
-                                valid_regs.append(r)
-                            else:
-                                logger.warning(
-                                    "[A2A] Ignoring invalid registry "
-                                    "entry (register/registry_name not "
-                                    "callable): %s",
-                                    type(r),
-                                )
+                valid_regs: List[A2ARegistry] = []
+                for r in regs:
+                    # Accept objects that implement required methods
+                    # (duck typing) Verify both existence and
+                    # callability to prevent runtime errors
+                    has_register = hasattr(r, "register")
+                    has_registry_name = hasattr(r, "registry_name")
+                    if has_register and has_registry_name:
+                        register_callable = callable(
+                            getattr(r, "register", None),
+                        )
+                        registry_name_callable = callable(
+                            getattr(r, "registry_name", None),
+                        )
+                        if register_callable and (registry_name_callable):
+                            valid_regs.append(r)
                         else:
                             logger.warning(
-                                "[A2A] Ignoring invalid registry entry "
-                                "(missing register/registry_name): %s",
+                                "[A2A] Ignoring invalid registry "
+                                "entry (register/registry_name not "
+                                "callable): %s",
                                 type(r),
                             )
-                    self._registries = valid_regs
-        else:
-            # Fall back to environment variables if no registry explicitly provided
-            # Uses create_registry_from_env() which:
-            # 1. Loads settings from .env file (if available) via get_registry_settings()
-            # 2. Checks A2A_REGISTRY_ENABLED and A2A_REGISTRY_TYPE
-            # 3. Only creates Nacos registry if A2A_REGISTRY_TYPE=nacos
-            env_registry = create_registry_from_env()
-            if env_registry is not None:
-                if isinstance(env_registry, A2ARegistry):
-                    self._registries = [env_registry]
-                else:
-                    # env_registry is a list
-                    self._registries = list(env_registry)
-                logger.debug("[A2A] Using registry from environment variables")
-            else:
-                self._registries = []
+                    else:
+                        logger.warning(
+                            "[A2A] Ignoring invalid registry entry "
+                            "(missing register/registry_name): %s",
+                            type(r),
+                        )
+                self._registry = valid_regs
 
         # AgentCard configuration
         self._card_name = card_name
@@ -205,9 +191,7 @@ class A2AFastAPIExtensionAdapter(ProtocolAdapter):
 
         # Task configuration
         self._task_timeout = task_timeout or DEFAULT_TASK_TIMEOUT
-        self._task_event_timeout = (
-            task_event_timeout or DEFAULT_TASK_EVENT_TIMEOUT
-        )
+        self._task_event_timeout = task_event_timeout or DEFAULT_TASK_EVENT_TIMEOUT
 
         # Wellknown configuration
         self._wellknown_path = wellknown_path or DEFAULT_WELLKNOWN_PATH
@@ -247,7 +231,7 @@ class A2AFastAPIExtensionAdapter(ProtocolAdapter):
         server.add_routes_to_app(app, rpc_url=self._json_rpc_path)
         self._add_wellknown_route(app, agent_card)
 
-        if self._registries:
+        if self._registry:
             self._register_with_all_registries(
                 agent_card=agent_card,
                 app=app,
@@ -260,7 +244,7 @@ class A2AFastAPIExtensionAdapter(ProtocolAdapter):
         app: FastAPI,
         **kwargs: Any,
     ) -> None:
-        """Register agent with all configured registries.
+        """Register agent with all configured registry instances.
 
         Registration failures are logged but do not block startup.
 
@@ -275,7 +259,7 @@ class A2AFastAPIExtensionAdapter(ProtocolAdapter):
             deploy_properties,
         )
 
-        for registry in self._registries:
+        for registry in self._registry:
             registry_name = registry.registry_name()
             try:
                 logger.info(
@@ -435,8 +419,7 @@ class A2AFastAPIExtensionAdapter(ProtocolAdapter):
         if not parsed.hostname:
             if not parsed.netloc and not parsed.path:
                 logger.warning(
-                    "[A2A] Malformed transport URL (empty netloc "
-                    "and path): %s",
+                    "[A2A] Malformed transport URL (empty netloc " "and path): %s",
                     url,
                 )
             else:
@@ -572,8 +555,38 @@ class A2AFastAPIExtensionAdapter(ProtocolAdapter):
         @app.get(self._wellknown_path)
         async def get_agent_card() -> JSONResponse:
             """Return agent card as JSON response."""
-            content = _serialize_card(agent_card)
-            return JSONResponse(content=content)
+            try:
+                content = _serialize_card(agent_card)
+                return JSONResponse(content=content)
+            except RuntimeError as e:
+                # Serialization completely failed
+                logger.error(
+                    "[A2A] Critical error: Failed to serialize AgentCard "
+                    "for wellknown endpoint: %s",
+                    e,
+                    exc_info=True,
+                )
+                return JSONResponse(
+                    status_code=500,
+                    content={
+                        "error": "Agent card serialization failed",
+                        "detail": str(e),
+                    },
+                )
+            except Exception as e:
+                # Unexpected error
+                logger.error(
+                    "[A2A] Unexpected error in wellknown endpoint: %s",
+                    e,
+                    exc_info=True,
+                )
+                return JSONResponse(
+                    status_code=500,
+                    content={
+                        "error": "Internal server error",
+                        "detail": str(e),
+                    },
+                )
 
     def _normalize_provider(
         self,
@@ -713,7 +726,7 @@ class A2AFastAPIExtensionAdapter(ProtocolAdapter):
         }
         for field, card_field in field_mapping.items():
             value = getattr(self, f"_{field}", None)
-            if value:
+            if value is not None:
                 card_kwargs[card_field] = value
 
         return AgentCard(**card_kwargs)

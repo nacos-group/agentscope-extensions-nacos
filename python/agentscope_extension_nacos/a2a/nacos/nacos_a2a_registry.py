@@ -307,18 +307,16 @@ class NacosRegistry(A2ARegistry):
     def _get_client_config(self) -> ClientConfig:
         """Get Nacos client configuration.
 
-        If nacos_client_config was provided during initialization, use it.
-        Otherwise, load configuration from environment variables or .env file.
-
         Returns:
             ClientConfig: Nacos client configuration
         """
         if self._nacos_client_config is not None:
             return self._nacos_client_config
 
-        # Load configuration from environment variables or .env file
-        # This ensures consistent behavior: loads from .env file if available,
-        # then falls back to system environment variables
+        # Use A2ARegistrySettings to load configuration (same pattern
+        # as sandbox server) This ensures consistent behavior: loads
+        # from .env file if available, then falls back to system
+        # environment variables
         from .a2a_registry import get_registry_settings
 
         settings = get_registry_settings()
@@ -454,21 +452,20 @@ class NacosRegistry(A2ARegistry):
             try:
                 svc = self._nacos_ai_service
                 if svc is not None:
-                    close_coro = getattr(svc, "close", None) or getattr(
+                    close_method = getattr(svc, "close", None) or getattr(
                         svc,
                         "shutdown",
                         None,
                     )
-                    if close_coro is not None and callable(close_coro):
+                    if close_method is not None and callable(close_method):
                         try:
-                            result = close_coro()
-                            # If the call returned a coroutine, await it
-                            if asyncio.iscoroutine(result):
-                                await result
+                            if asyncio.iscoroutinefunction(close_method):
+                                await close_method()
                             else:
-                                logger.debug(
-                                    "[NacosRegistry] NacosAIService closed",
-                                )
+                                close_method()
+                            logger.debug(
+                                "[NacosRegistry] NacosAIService closed",
+                            )
                         except Exception:
                             logger.debug(
                                 "[NacosRegistry] Error closing NacosAIService",

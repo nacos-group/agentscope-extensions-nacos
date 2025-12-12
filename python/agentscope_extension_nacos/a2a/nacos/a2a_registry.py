@@ -2,12 +2,13 @@
 """
 A2A Registry Extension Point
 
-Defines the abstract interface and data structures for A2A registry
+Defines the abstract interface and helper utilities for A2A registry
 implementations. Registry implementations are responsible for registering
 agent services to service discovery systems (for example: Nacos, Consul).
 
-This module provides helper functions to create registry instances from
-environment variables or .env files for simplified configuration.
+This module focuses on clarity and small helper functions used by the
+runtime to instantiate registry implementations from environment
+configuration or .env files.
 """
 import logging
 import os
@@ -244,13 +245,13 @@ def create_registry_from_env() -> (
         logger.debug("[A2A] No registry type specified in A2A_REGISTRY_TYPE")
         return None
 
-    registries: List[A2ARegistry] = []
+    registry_list: List[A2ARegistry] = []
 
     for registry_type in types:
         if registry_type == "nacos":
             registry = _create_nacos_registry_from_settings(settings)
             if registry:
-                registries.append(registry)
+                registry_list.append(registry)
             else:
                 logger.debug(
                     "[A2A] Skipping nacos registry due to earlier errors",
@@ -261,9 +262,9 @@ def create_registry_from_env() -> (
                 f"{registry_type}. Supported: nacos",
             )
 
-    if not registries:
+    if not registry_list:
         return None
 
     # Return single instance when only one was configured to preserve
     # backward compatibility with callers that expect a single registry.
-    return registries[0] if len(registries) == 1 else registries
+    return registry_list[0] if len(registry_list) == 1 else registry_list
