@@ -44,9 +44,9 @@ setup(
     ],
     python_requires=">=3.9",
     install_requires=[
-        "nacos-sdk-python>=3.0.0b1",
+        "nacos-sdk-python>=3.0.0",
         "agentscope>=1.0.7",
-        "agentscope-runtime>=0.1.5",
+        "agentscope-runtime>=1.0.1",
         "httpx>=0.25.0",
         "pydantic>=2.0.0",
     ],

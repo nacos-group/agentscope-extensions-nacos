@@ -4,914 +4,1225 @@ import json
 import logging
 from abc import abstractmethod
 from pathlib import Path
-from typing import Any, Optional, Type, Union
+from typing import Any, Optional, Type, Union, Callable
 from urllib.parse import urlparse
 from uuid import uuid4
 
 import httpx
-from a2a.client import A2ACardResolver, A2AClient, ClientEvent
-from a2a.client.client import ClientConfig as A2AClientConfig
-from a2a.client.client_factory import ClientFactory as A2AClientFactory
+from dataclasses import dataclass, field
+
+from a2a.client import Consumer
+from a2a.client.client_factory import TransportProducer, ClientFactory
 from a2a.types import (
-	A2ARequest,
 	AgentCard,
 	Message as A2AMessage,
-	Part,
-	Role as A2ARole,
-	Task as A2ATask,
-	TaskState,
-	TextPart,
-	TransportProtocol as A2ATransport,
+	Part, TransportProtocol, PushNotificationConfig,
 )
-from a2a.utils import AGENT_CARD_WELL_KNOWN_PATH
 from agentscope.agent import AgentBase
 from agentscope.message import Msg
+from grpc import Channel
 from pydantic import BaseModel
 
+from agentscope_extension_nacos.a2a.a2a_card_resolver import \
+	AgentCardResolverBase, FixedAgentCardResolver
 
 # Initialize logger
 logger = logging.getLogger(__name__)
 
 
-class A2ACardResolverBase:
-	"""Base class for A2A Agent Card resolvers.
-	
-	This abstract class defines the interface for resolving agent cards
-	from various sources (URL, file, Nacos, etc.).
+@dataclass
+class A2aAgentConfig:
+	"""Configuration for A2A agent client.
+
+	This configuration class contains all settings needed for connecting
+	to and communicating with remote A2A agents, including transport
+	preferences, streaming options, and custom client configurations.
 	"""
 
-	@abstractmethod
-	async def get_agent_card(self):
-		"""Get Agent Card from the configured source.
-		
-		Returns:
-			AgentCard: The resolved agent card object
-		"""
+	streaming: bool = True
+	"""Whether the client supports streaming responses."""
+
+	polling: bool = False
+	"""Whether the client prefers to poll for updates from message:send.
+	It is the caller's responsibility to check if the response is completed
+	and if not, run a polling loop."""
+
+	httpx_client: httpx.AsyncClient | None = None
+	"""HTTP client to use for connecting to the agent."""
+
+	grpc_channel_factory: Callable[[str], Channel] | None = None
+	"""Factory function that generates a gRPC connection channel for a
+	given URL."""
+
+	supported_transports: list[TransportProtocol | str] = field(
+			default_factory=list,
+	)
+	"""Ordered list of supported transports for connecting to the agent,
+	in order of preference. An empty list implies JSONRPC only.
+	This is a string type to allow custom transports to exist in closed
+	ecosystems."""
+
+	use_client_preference: bool = False
+	"""Whether to use client transport preferences over server preferences.
+	It is recommended to use server preferences in most situations."""
+
+	accepted_output_modes: list[str] = field(default_factory=list)
+	"""The set of accepted output modes for the client."""
+
+	push_notification_configs: list[PushNotificationConfig] = field(
+			default_factory=list,
+	)
+	"""List of push notification configurations for the agent."""
+
+	consumers: list[Consumer] = field(default_factory=list)
+	"""Consumers for handling A2A client events. These intercept
+	request/response flows for logging, metrics, and security.
+	They are applied automatically to all clients from the factory
+	and implement event handlers like on_request_send and
+	on_response_receive, enabling modular cross-cutting concerns
+	in A2A communications."""
+
+	additional_transport_producers: dict[str, TransportProducer] = field(
+			default_factory=dict,
+	)
+	"""Mapping of transport labels to transport producers.
+	Used for creating A2A clients with specific transport protocols."""
 
 
-class DefaultA2ACardResolver(A2ACardResolverBase):
-	"""Default implementation of A2A Agent Card resolver.
-	
-	Resolves agent cards from either HTTP/HTTPS URLs or local file paths.
-	Supports lazy loading and caching of the resolved agent card.
-	
-	Args:
-		agent_card_source: URL or file path to the agent card
-		httpx_client: Async HTTP client for URL-based resolution
-		agent_card_path: Path to append to base URL (default: well-known path)
+class A2aAgent(AgentBase):
+	"""An A2A agent implementation in AgentScope, which supports
+
+	- Communication with remote agents using the A2A protocol
+	- Bidirectional message conversion between AgentScope and A2A formats
+	- Task lifecycle management with streaming and polling
+	- Artifact handling and status tracking
 	"""
 
 	def __init__(
 			self,
-			agent_card_source: str,
-			httpx_client: httpx.AsyncClient,
-			agent_card_path: str = AGENT_CARD_WELL_KNOWN_PATH,
+			name: str,
+			agent_card: Union[AgentCard, AgentCardResolverBase],
+			agent_config: A2aAgentConfig = A2aAgentConfig(),
 	) -> None:
-		self._agent_card: Optional[AgentCard] = None
-		self._agent_card_source = agent_card_source
-		self._httpx_client = httpx_client
-		self._agent_card_path = agent_card_path
-		
-		logger.debug(f"[{self.__class__.__name__}] Initialized with source: {agent_card_source}")
+		"""Initialize the A2A agent.
 
-	async def get_agent_card(
-        self,
-        relative_card_path: str | None = None,
-        http_kwargs: dict[str, Any] | None = None,
-    ) -> AgentCard:
-		"""Get agent card with lazy loading and caching.
-		
-		Returns:
-			AgentCard: Cached or newly resolved agent card
-		"""
-		if self._agent_card is None:
-			logger.info(f"[{self.__class__.__name__}] Resolving agent card from: {self._agent_card_source}")
-			self._agent_card = await self._resolve_agent_card()
-			logger.info(f"[{self.__class__.__name__}] Agent card resolved successfully: {self._agent_card.name}")
-		return self._agent_card
-
-	async def _resolve_agent_card(self) -> AgentCard:
-		"""Resolve agent card from configured source.
-		
-		Automatically determines whether to resolve from URL or file
-		based on the source format.
-		
-		Returns:
-			AgentCard: Resolved agent card object
-		"""
-		# Determine if source is URL or file path
-		if self._agent_card_source.startswith(("http://", "https://")):
-			logger.debug(f"[{self.__class__.__name__}] Resolving agent card from URL")
-			return await self._resolve_agent_card_from_url(
-				self._agent_card_source)
-		else:
-			logger.debug(f"[{self.__class__.__name__}] Resolving agent card from file")
-			return await self._resolve_agent_card_from_file(
-				self._agent_card_source)
-
-	async def _resolve_agent_card_from_url(self, url: str) -> AgentCard:
-		"""Resolve agent card from HTTP/HTTPS URL.
-		
 		Args:
-			url: Full URL to the agent card
-			
-		Returns:
-			AgentCard: Resolved agent card object
-			
-		Raises:
-			ValueError: If URL format is invalid
-			RuntimeError: If resolution fails
+				name (`str`):
+						The name of the agent.
+				agent_card (`AgentCard | AgentCardResolverBase`):
+						The agent card or a resolver to obtain the agent
+						card. The agent card contains information about
+						the remote agent, such as its URL and capabilities.
+				agent_config (`A2aAgentConfig`, optional):
+						Configuration for the A2A client, including
+						transport preferences and streaming options.
+						Defaults to `A2aAgentConfig()`.
 		"""
-		try:
-			parsed_url = urlparse(url)
-			if not parsed_url.scheme or not parsed_url.netloc:
-				logger.error(f"[{self.__class__.__name__}] Invalid URL format: {url}")
-				raise ValueError(f"Invalid URL format: {url}")
+		from a2a.types import AgentCard
 
-			base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
-			relative_card_path = parsed_url.path
-
-			if not self._httpx_client:
-				self._http_client = httpx.AsyncClient(
-						timeout=httpx.Timeout(timeout=600)
-				)
-			resolver = A2ACardResolver(
-					httpx_client=self._httpx_client,
-					base_url=base_url,
-					agent_card_path=self._agent_card_path
-			)
-			return await resolver.get_agent_card(
-					relative_card_path=relative_card_path
-			)
-		except Exception as e:
-			logger.error(f"[{self.__class__.__name__}] Failed to resolve agent card from URL {url}: {e}")
-			raise RuntimeError(
-					f"Failed to resolve AgentCard from URL {url}: {e}"
-			) from e
-
-	async def _resolve_agent_card_from_file(self, file_path: str) -> AgentCard:
-		"""Resolve agent card from local file path.
-		
-		Args:
-			file_path: Path to the agent card JSON file
-			
-		Returns:
-			AgentCard: Parsed agent card object
-			
-		Raises:
-			FileNotFoundError: If file doesn't exist
-			ValueError: If path is not a file
-			RuntimeError: If JSON parsing fails
-		"""
-		try:
-			path = Path(file_path)
-			if not path.exists():
-				logger.error(f"[{self.__class__.__name__}] Agent card file not found: {file_path}")
-				raise FileNotFoundError(
-					f"Agent card file not found: {file_path}")
-			if not path.is_file():
-				logger.error(f"[{self.__class__.__name__}] Path is not a file: {file_path}")
-				raise ValueError(f"Path is not a file: {file_path}")
-
-			with path.open("r", encoding="utf-8") as f:
-				agent_json_data = json.load(f)
-				return AgentCard(**agent_json_data)
-		except json.JSONDecodeError as e:
-			logger.error(f"[{self.__class__.__name__}] Invalid JSON in agent card file {file_path}: {e}")
-			raise RuntimeError(
-					f"Invalid JSON in agent card file {file_path}: {e}"
-			) from e
-		except Exception as e:
-			logger.error(f"[{self.__class__.__name__}] Failed to resolve agent card from file {file_path}: {e}")
-			raise RuntimeError(
-					f"Failed to resolve AgentCard from file {file_path}: {e}"
-			) from e
-
-
-
-class A2aAgent(AgentBase):
-	"""AgentScope agent that communicates with remote A2A protocol agents.
-	
-	This agent acts as a bridge between AgentScope and A2A protocol-compliant
-	agents. It handles message conversion, session management, and error handling.
-	
-	Features:
-		- Lazy initialization for better performance
-		- Session state management (context_id, task_id)
-		- Automatic message format conversion (AgentScope <-> A2A)
-		- Support for both streaming and non-streaming responses
-		- Error handling and recovery
-	
-	Args:
-		agent_card_source: AgentCard object, URL, or file path to the card
-		httpx_client: Optional HTTP client for network requests
-		a2a_client_factory: Optional custom A2A client factory
-		agent_card_resolver: Optional custom agent card resolver
-		agent_name: Optional custom name for the agent
-		
-	Raises:
-		ValueError: If neither agent_card nor agent_card_resolver is provided
-		TypeError: If agent_card has invalid type
-	
-	Example:
-		>>> # From URL
-		>>> agent = A2aAgent(agent_card_source="https://example.com")
-		>>> response = await agent.reply(msg)
-		
-		>>> # Use user defined A2ACardResolver
-		>>> resolver = DefaultA2ACardResolver(agent_card_source="test-agent")
-		>>> agent = A2aAgent(agent_card_source=None, agent_card_resolver=resolver)
-		>>> response = await agent.reply(msg)
-	"""
-
-	def __init__(self, agent_card_source: Union[AgentCard, str] | None = None,
-			httpx_client: Optional[httpx.AsyncClient] = None,
-			a2a_client_factory: Optional[A2AClientFactory] = None,
-			agent_card_resolver: A2ACardResolverBase | None = None,
-			agent_name: Optional[str] = None):
 		super().__init__()
+		self.name: str = name
+		"""The name of the agent."""
 
-		# Core components
-		self._agent_card: Optional[AgentCard] = None
-		self._agent_card_source: Optional[str] = None
-		self._use_resolver = True
-		self._a2a_client: Optional[A2AClient] = None
-		self._httpx_client = httpx_client
-		if a2a_client_factory and a2a_client_factory._config.httpx_client:
-			self._httpx_client = a2a_client_factory._config.httpx_client
-		self._a2a_client_factory: Optional[A2AClientFactory] = a2a_client_factory
-		self._a2a_card_resolver = agent_card_resolver
+		self._is_ready = False
+		"""Flag indicating whether the A2A client is initialized."""
 
-		# Lazy initialization state
-		self._initialized = False
-		self._initializing = False
-		self._init_lock = asyncio.Lock()
+		self._agent_card: AgentCard | None = None
+		"""The resolved agent card."""
 
-		# Session state management
-		self._current_task_id: Optional[str] = None
-		self._current_context_id: Optional[str] = None
-		self._conversation_history: list[A2AMessage] = []
-		
-		# Agent name (priority: user-specified > agent card > default)
-		self._user_specified_name = agent_name
-		self.name = agent_name or "A2AAgent"  # Temporary default, updated after init
+		self._a2a_client_factory: ClientFactory | None = None
+		"""The A2A client factory for creating communication clients."""
 
-		# Validate input parameters
-		if agent_card_source is None and agent_card_resolver is None:
-			raise ValueError("agent_card or agent_card_resolver is required")
+		if agent_card is None:
+			raise ValueError("Agent card cannot be None")
 
-		# Process agent_card parameter
-		if agent_card_source is not None:
-			if isinstance(agent_card_source, AgentCard):
-				self._agent_card = agent_card_source
-				# Set name immediately if agent card is provided
-				if not self._user_specified_name and agent_card_source.name:
-					self.name = agent_card_source.name
-				logger.debug(f"[{self.__class__.__name__}] Initialized with AgentCard: {agent_card_source.name}")
-			elif isinstance(agent_card_source, str):
-				if not agent_card_source.strip():
-					raise ValueError("agent_card string cannot be empty")
-				self._agent_card_source = agent_card_source.strip()
-				logger.debug(f"[{self.__class__.__name__}] Initialized with card source: {agent_card_source}")
-			else:
-				raise TypeError(
-						"agent_card must be AgentCard, URL string, or file path string, "
-						f"got {type(agent_card_source)}"
-				)
+		if isinstance(agent_card, AgentCardResolverBase):
+			self._agent_card_resolver = agent_card
+		elif isinstance(agent_card, AgentCard):
+			self._agent_card_resolver = FixedAgentCardResolver(agent_card)
 		else:
-			logger.debug(f"[{self.__class__.__name__}] Initialized with card resolver")
+			raise ValueError(
+					f"Invalid agent card type: {type(agent_card)}",
+			)
 
-	async def _ensure_initialized(self):
-		"""Ensure agent is initialized (thread-safe lazy initialization).
-		
-		Uses double-checked locking pattern to avoid multiple initializations.
-		Waits if initialization is already in progress.
+		self._agent_config: A2aAgentConfig = agent_config
+		"""Configuration for the A2A client."""
+
+		self._observed_msgs: list[Msg] = []
+		"""List of observed messages to be processed in the next reply."""
+
+	async def observe(self, msg: Msg | list[Msg] | None) -> None:
+		"""Receive the given message(s) without generating a reply.
+
+		The observed messages are stored and will be merged with the
+		input messages when `reply` is called. After `reply` completes,
+		the stored messages will be cleared.
+
+		Args:
+			msg (`Msg | list[Msg] | None`):
+				The message(s) to be observed. If None, no action is taken.
 		"""
-		if self._initialized:
-			return
-			
-		# Wait if initialization is in progress
-		if self._initializing:
-			while self._initializing:
-				await asyncio.sleep(0.01)
+		if msg is None:
 			return
 
-		async with self._init_lock:
-			# Double-check to avoid duplicate initialization
-			if self._initialized:
-				return
+		if isinstance(msg, Msg):
+			self._observed_msgs.append(msg)
+		else:
+			self._observed_msgs.extend(msg)
 
-		self._initializing = True
+		logger.debug(
+				"[%s] Observed %d message(s), total stored: %d",
+				self.__class__.__name__,
+				1 if isinstance(msg, Msg) else len(msg),
+				len(self._observed_msgs),
+		)
+
+	async def _get_agent_card(self) -> AgentCard:
+		"""Retrieve the agent card from the configured resolver.
+
+		This method validates the retrieved agent card before using it.
+		If validation fails, the previous agent card is retained
+		(if available).
+
+		Returns:
+				`AgentCard`:
+						The resolved and validated agent card. If the newly
+						resolved card is invalid and a previous valid card
+						exists, the previous card is returned.
+
+		Raises:
+				`RuntimeError`:
+						If the resolved agent card is invalid and no
+						previous valid card is available.
+		"""
 		try:
-			logger.info(f"[{self.__class__.__name__}] Initializing...")
-			await self._async_init()
-			self._initialized = True
-			logger.info(f"[{self.__class__.__name__}] Initialization completed: {self.name}")
+			# Get new agent card from resolver
+			new_agent_card = await self._agent_card_resolver.get_agent_card()
+
+			# Validate the new agent card
+			await self._validate_agent_card(new_agent_card)
+
+			# If validation passes, update and return
+			self._agent_card = new_agent_card
+			logger.debug(
+					"[%s] Successfully resolved and validated agent card",
+					self.__class__.__name__,
+			)
+			return self._agent_card
+
 		except Exception as e:
-			logger.error(f"[{self.__class__.__name__}] Failed to initialize: {e}")
-			raise
-		finally:
-			self._initializing = False
-
-
-	async def _ensure_http_client(self):
-		"""Ensure HTTP client is initialized and configured.
-		
-		Creates a new HTTP client if not provided, and updates the A2A client
-		factory configuration accordingly.
-		"""
-		if not self._httpx_client:
-			self._httpx_client = httpx.AsyncClient(
-					timeout=httpx.Timeout(timeout=600)
+			# Validation failed
+			logger.warning(
+					"[%s] Failed to resolve or validate agent card: %s",
+					self.__class__.__name__,
+					e,
 			)
-			if self._a2a_client_factory:
-				registry = self._a2a_client_factory._registry
-				self._a2a_client_factory = A2AClientFactory(
-						config=dataclasses.replace(
-								self._a2a_client_factory._config,
-								httpx_client=self._httpx_client,
-						),
-						consumers=self._a2a_client_factory._consumers,
+
+			# If we have a previous valid agent card, use it
+			if self._agent_card is not None:
+				logger.debug(
+						"[%s] Using previous valid agent card",
+						self.__class__.__name__,
 				)
-				for label, generator in registry.items():
-					self._a2a_client_factory.register(label, generator)
-		if not self._a2a_client_factory:
-			client_config = A2AClientConfig(
-					httpx_client=self._httpx_client,
-					streaming=True,
-					polling=False,
-					supported_transports=[A2ATransport.jsonrpc],
-			)
-			self._a2a_client_factory = A2AClientFactory(config=client_config)
-		return self._httpx_client
-
-	async def _async_init(self):
-		"""Internal async initialization logic.
-		
-		Performs the following steps:
-		1. Ensure HTTP client is ready
-		2. Create card resolver if needed
-		3. Resolve agent card
-		4. Validate agent card
-		5. Set agent name
-		"""
-		# Ensure HTTP client is initialized
-		await self._ensure_http_client()
-		
-		# Create default card resolver if using resolver and not provided
-		if self._use_resolver and not self._a2a_card_resolver:
-			logger.debug(f"[{self.__class__.__name__}] Creating default card resolver")
-			self._a2a_card_resolver = DefaultA2ACardResolver(
-					agent_card_source=self._agent_card_source,
-					httpx_client=self._httpx_client,
-			)
-
-		# Resolve agent card from configured source
-		if self._use_resolver:
-			self._agent_card = await self._a2a_card_resolver.get_agent_card()
-
-		# Validate the resolved agent card
-		await self._validate_agent_card(self._agent_card)
-		
-		# Set agent name (priority: user-specified > agent card name > default)
-		if not self._user_specified_name:
-			if self._agent_card and self._agent_card.name:
-				self.name = self._agent_card.name
-				logger.debug(f"[{self.__class__.__name__}] Agent name set from card: {self.name}")
+				return self._agent_card
 			else:
-				self.name = "A2AAgent"
+				# No previous valid card, must fail
+				logger.error(
+						"[%s] No valid agent card available",
+						self.__class__.__name__,
+				)
+				raise RuntimeError(
+						f"Failed to resolve agent card and "
+						f"no previous valid card available: {e}",
+				) from e
+
+	async def reply(
+			self,
+			msg: Msg | list[Msg] | None = None,
+	) -> Msg:
+		"""Send message(s) to the remote A2A agent and receive a response.
+
+		This method merges any previously observed messages with the input
+		messages, sends them to the remote agent, and clears the observed
+		messages after processing.
+
+		Args:
+				msg (`Msg | list[Msg] | None`, optional):
+						The message(s) to send to the remote agent.
+						Can be a single Msg, a list of Msgs, or None.
+						If None, only observed messages will be sent.
+						Defaults to None.
+
+		Returns:
+				`Msg`:
+						The response message from the remote agent. For
+						tasks, this may be either a status update message
+						or the final artifacts message, depending on the
+						task state. If no messages are provided (both msg
+						and observed messages are empty), returns a prompt
+						message. If an error occurs during communication,
+						returns an error message.
+		"""
+		from a2a.types import Message as A2AMessage, TaskState
+
+		await self._ensure_ready()
+
+		# Merge observed messages with input messages
+		msgs_list: list[Msg] = list(self._observed_msgs)
+
+		if msg is not None:
+			if isinstance(msg, Msg):
+				msgs_list.append(msg)
+			else:
+				msgs_list.extend(msg)
+
+		# Filter out None values
+		msgs_list = [m for m in msgs_list if m is not None]
+
+		# If no messages to send, return early with a prompt message
+		if not msgs_list:
+			logger.debug(
+					"[%s] No messages to send, returning prompt message",
+					self.__class__.__name__,
+			)
+			response_msg = Msg(
+					name=self.name,
+					content="No input message provided. How can I help you?",
+					role="assistant",
+			)
+			await self.print(response_msg, True)
+			return response_msg
+
+		logger.debug(
+				"[%s] Processing %d message(s) for A2A conversion",
+				self.__class__.__name__,
+				len(msgs_list),
+		)
+
+		a2a_message = self._convert_msgs_to_a2a_message(msgs_list)
+
+		response_msg = None
+
+		try:
+			# Create A2A client and send message
+			client = self._a2a_client_factory.create(
+					card=await self._get_agent_card(),
+			)
+
+			logger.debug(
+					"[%s] Sending message to remote agent: %s",
+					self.__class__.__name__,
+					self.name,
+			)
+
+			async for item in client.send_message(a2a_message):
+				if isinstance(item, A2AMessage):
+					response_msg = self._convert_a2a_message_to_msg(item)
+					await self.print(response_msg, False)
+					logger.debug(
+							"[%s] Received direct message response",
+							self.__class__.__name__,
+					)
+
+				elif isinstance(item, tuple):
+					task, _ = item
+					logger.debug(
+							"[%s] Task update: %s, task_id: %s",
+							self.__class__.__name__,
+							task.status.state.value,
+							task.id,
+					)
+
+					# Construct message from task status
+					status_msg = self._construct_msg_from_task_status(task)
+					await self.print(status_msg, False)
+
+					artifact_msg = self._convert_task_artifacts_to_msg(task)
+					if artifact_msg:
+						await self.print(artifact_msg, False)
+
+					# Check task status
+					if task.status.state == TaskState.completed:
+						response_msg = artifact_msg
+						logger.debug(
+								"[%s] Task completed successfully: %s",
+								self.__class__.__name__,
+								task.id,
+						)
+					else:
+						response_msg = status_msg
+						logger.debug(
+								"[%s] Task update: %s, id: %s",
+								self.__class__.__name__,
+								task.status.state.value,
+								task.id,
+						)
+
+		except asyncio.CancelledError:
+			# User interruption - re-raise for proper cancellation handling
+			logger.debug(
+					"[%s] Communication cancelled by user",
+					self.__class__.__name__,
+			)
+			raise
+
+		except Exception as e:
+			# Log error and return error message instead of raising
+			logger.error(
+					"[%s] Failed to get response from remote agent: %s",
+					self.__class__.__name__,
+					e,
+					exc_info=True,
+			)
+
+			# Create an error response message
+			error_text = (
+				f"Error communicating with remote agent: "
+				f"{type(e).__name__}: {str(e)}"
+			)
+			response_msg = Msg(
+					name=self.name,
+					content=[TextBlock(type="text", text=error_text)],
+					role="assistant",
+					metadata={"error": True, "error_type": type(e).__name__},
+			)
+
+		finally:
+			# Ensure we have a response message
+			if response_msg is None:
+				logger.warning(
+						"[%s] No response received from remote agent",
+						self.__class__.__name__,
+				)
+				response_msg = Msg(
+						name=self.name,
+						content=[
+							TextBlock(
+									type="text",
+									text="No response received from remote agent",
+							),
+						],
+						role="assistant",
+						metadata={"error": True, "error_type": "NoResponse"},
+				)
+
+		# Clear observed messages after processing
+		self._observed_msgs.clear()
+
+		await self.print(response_msg, True)
+		return response_msg
+
+	async def handle_interrupt(
+			self,
+			_msg: Msg | list[Msg] | None = None,
+			_structured_model: Type[BaseModel] | None = None,
+	) -> Msg:
+		"""The post-processing logic when the reply is interrupted by the
+		user or something else.
+
+		Args:
+				_msg (`Msg | list[Msg] | None`, optional):
+						The input message(s) to the agent.
+				_structured_model (`Type[BaseModel] | None`, optional):
+						The required structured output model.
+		"""
+
+		response_msg = Msg(
+				self.name,
+				"I noticed that you have interrupted me. What can I "
+				"do for you?",
+				"assistant",
+				metadata={
+					# Expose this field to indicate the interruption
+					"_is_interrupted": True,
+				},
+		)
+
+		await self.print(response_msg, True)
+
+		# Add to observed messages for context in next reply
+		self._observed_msgs.append(response_msg)
+
+		return response_msg
+
+	def _construct_msg_from_task_status(self, task: Task) -> Msg:
+		"""Construct an AgentScope Msg from an A2A Task status.
+
+		Args:
+				task (`Task`):
+						The A2A Task object containing status information.
+
+		Returns:
+				`Msg`:
+						Constructed message with task state information.
+						The message will include a TextBlock at the
+						beginning showing the task ID and current status.
+		"""
+		if task.status.message:
+			# Convert A2A message to Msg
+			response_msg = self._convert_a2a_message_to_msg(
+					task.status.message,
+			)
+
+			# Add task state info at the beginning of content
+			status_text = (
+				f"[Task ID: {task.id}，Status: {task.status.state.value}]"
+			)
+			state_info_block = TextBlock(type="text", text=status_text)
+
+			# Ensure content is a list and prepend state info
+			if isinstance(response_msg.content, str):
+				# Convert string to list with state info
+				response_msg.content = [
+					state_info_block,
+					TextBlock(type="text", text=response_msg.content),
+				]
+			elif isinstance(response_msg.content, list):
+				# Prepend to existing list
+				response_msg.content.insert(0, state_info_block)
+			else:
+				# Fallback: create new list
+				response_msg.content = [state_info_block]
+		else:
+			# No message in task.status, create new Msg with task state info
+			status_text = (
+				f"[Task ID: {task.id}, " f"Status: {task.status.state.value}]"
+			)
+			state_info_block = TextBlock(type="text", text=status_text)
+			response_msg = Msg(
+					name=self.name,
+					content=[state_info_block],
+					role="assistant",
+			)
+
+		return response_msg
+
+	def _convert_task_artifacts_to_msg(self, task: Task) -> Msg | None:
+		"""Convert all task artifacts to a single AgentScope Msg.
+
+		Args:
+				task (`Task`):
+						The A2A Task object containing artifacts to convert.
+
+		Returns:
+				`Msg | None`:
+						A merged message with all artifact parts as
+						ContentBlocks, or `None` if the task has no
+						artifacts.
+		"""
+		if not task.artifacts or len(task.artifacts) == 0:
+			return None
+
+		all_content_blocks: list[ContentBlock] = []
+
+		# Process all artifacts
+		for artifact in task.artifacts:
+			# Convert each part to content block
+			for part in artifact.parts:
+				content_block = self._convert_part_to_content_block(part)
+				if content_block:
+					all_content_blocks.append(content_block)
+
+		# Create message with all content blocks
+		merged_msg = Msg(
+				name=self.name,
+				content=all_content_blocks if all_content_blocks else "",
+				role="assistant",
+		)
+
+		return merged_msg
+
+	def _convert_a2a_message_to_msg(self, a2a_message: A2AMessage) -> Msg:
+		"""Convert an A2A Message to an AgentScope Msg.
+
+		Args:
+				a2a_message (`A2AMessage`):
+						The A2A Message to convert.
+
+		Returns:
+				`Msg`:
+						The converted AgentScope message. If the message
+						contains AgentScope metadata, the original Msg is
+						reconstructed. Otherwise, a new Msg with an empty
+						name is created.
+		"""
+		from a2a.types import Role as A2ARole
+
+		# Group parts by msg_id to reconstruct original messages
+		msg_groups = OrderedDict()  # Preserve order
+		parts_without_metadata = []
+
+		# Process all parts
+		for part in a2a_message.parts:
+			# Convert part to content block
+			content_block = self._convert_part_to_content_block(part)
+			if content_block is None:
+				continue
+
+			# Check if part has AgentScope metadata
+			part_metadata = (
+				part.root.metadata if hasattr(part.root, "metadata") else None
+			)
+			msg_id = (
+				part_metadata.get("_agentscope_msg_id")
+				if part_metadata
+				else None
+			)
+
+			if msg_id:
+				# Has AgentScope metadata - group by msg_id
+				if msg_id not in msg_groups:
+					msg_groups[msg_id] = {
+						"msg_id": msg_id,
+						"msg_source": part_metadata.get(
+								"_agentscope_msg_source",
+								"",
+						),
+						"content_blocks": [],
+					}
+				msg_groups[msg_id]["content_blocks"].append(content_block)
+			else:
+				# No AgentScope metadata
+				parts_without_metadata.append(content_block)
+
+		# Case 1: Has AgentScope metadata - reconstruct Msg(s)
+		if msg_groups:
+			# Normally single message, but handle multiple just in case
+			msgs = []
+			for msg_id, group_data in msg_groups.items():
+				# Get metadata from A2A message metadata
+				msg_metadata = None
+				if a2a_message.metadata and msg_id in a2a_message.metadata:
+					msg_metadata = a2a_message.metadata[msg_id]
+
+				# Determine role based on A2A message role
+				role: Literal["user", "assistant"] = (
+					"assistant"
+					if a2a_message.role == A2ARole.agent
+					else "user"
+				)
+
+				msg = Msg(
+						name=self.name,
+						content=group_data["content_blocks"],
+						role=role,
+						metadata=msg_metadata,
+				)
+				msgs.append(msg)
+
+			# Return first message (normal case)
+			return msgs[0]
+
+		# Case 2: No AgentScope metadata - create new Msg
+		elif parts_without_metadata:
+			role2: Literal["user", "assistant"] = (
+				"assistant" if a2a_message.role == A2ARole.agent else "user"
+			)
+
+			msg = Msg(
+					name=self.name,
+					content=parts_without_metadata,
+					role=role2,
+					metadata=a2a_message.metadata,
+			)
+			return msg
+
+		# Case 3: No valid content
+		else:
+			logger.debug(
+					"[%s] No valid content found in A2A message",
+					self.__class__.__name__,
+			)
+			role3: Literal["user", "assistant"] = (
+				"assistant" if a2a_message.role == A2ARole.agent else "user"
+			)
+			return Msg(
+					name=self.name,
+					content="",
+					role=role3,
+					metadata=a2a_message.metadata,
+			)
+
+	def _convert_part_to_content_block(
+			self,
+			part: Part,
+	) -> ContentBlock | None:
+		"""Convert A2A Part to AgentScope ContentBlock.
+
+		Handles three types of parts:
+		- TextPart -> TextBlock or ThinkingBlock (based on metadata)
+		- FilePart -> ImageBlock/AudioBlock/VideoBlock (based on mime type)
+		- DataPart -> ToolUseBlock/ToolResultBlock (with AgentScope metadata)
+		  or TextBlock (without metadata)
+
+		Args:
+				part (`Part`):
+						The A2A Part to convert.
+
+		Returns:
+				`ContentBlock | None`:
+						The converted ContentBlock, or `None` if the part
+						type is unknown or conversion fails.
+		"""
+		from a2a.types import TextPart, FilePart, DataPart
+
+		part_root = part.root
+
+		# Case 1: TextPart
+		if isinstance(part_root, TextPart):
+			text_content = part_root.text
+
+			# Check for AgentScope metadata
+			part_metadata = (
+				part_root.metadata if hasattr(part_root, "metadata") else None
+			)
+			block_type = (
+				part_metadata.get("_agentscope_block_type")
+				if part_metadata
+				else None
+			)
+
+			if block_type == "thinking":
+				# Convert to ThinkingBlock
+				return ThinkingBlock(type="thinking", thinking=text_content)
+			else:
+				# Convert to TextBlock (default)
+				return TextBlock(type="text", text=text_content)
+
+		# Case 2: FilePart
+		elif isinstance(part_root, FilePart):
+			return self._convert_file_part_to_media_block(part_root)
+
+		# Case 3: DataPart
+		elif isinstance(part_root, DataPart):
+			return self._convert_data_part_to_block(part_root)
+
+		# Unknown part type
+		else:
+			logger.debug(
+					"[%s] Unknown part type: %s",
+					self.__class__.__name__,
+					type(part_root),
+			)
+			return None
+
+	def _convert_data_part_to_block(self, data_part: DataPart) -> ContentBlock:
+		"""Convert an A2A DataPart to an AgentScope ContentBlock.
+
+		Args:
+				data_part (`DataPart`):
+						The A2A DataPart to convert.
+
+		Returns:
+				`ContentBlock`:
+						The converted ToolUseBlock, ToolResultBlock
+						(if AgentScope metadata present), or TextBlock
+						(JSON-serialized).
+		"""
+		# Check for AgentScope metadata
+		part_metadata = (
+			data_part.metadata if hasattr(data_part, "metadata") else None
+		)
+		block_type = (
+			part_metadata.get("_agentscope_block_type")
+			if part_metadata
+			else None
+		)
+
+		# Case 1: ToolUse block
+		if block_type == "tool_use":
+			tool_name = part_metadata.get("_agentscope_tool_name")
+			tool_id = part_metadata.get("_agentscope_tool_call_id")
+			tool_input = data_part.data  # Data.data → ToolUse.input
+
+			return ToolUseBlock(
+					type="tool_use",
+					id=tool_id,
+					name=tool_name,
+					input=tool_input,
+			)
+
+		# Case 2: ToolResult block
+		elif block_type == "tool_result":
+			tool_name = part_metadata.get("_agentscope_tool_name")
+			tool_id = part_metadata.get("_agentscope_tool_call_id")
+			tool_output = data_part.data.get(
+					"_agentscope_tool_output",
+			)  # Data.data._agentscope_tool_output → ToolResult.output
+
+			return ToolResultBlock(
+					type="tool_result",
+					id=tool_id,
+					name=tool_name,
+					output=tool_output,
+			)
+
+		# Case 3: No AgentScope metadata - serialize to JSON TextBlock
+		else:
+			data_json = json.dumps(
+					data_part.data,
+					ensure_ascii=False,
+					indent=2,
+			)
+			return TextBlock(type="text", text=data_json)
+
+	def _convert_file_part_to_media_block(
+			self,
+			file_part: FilePart,
+	) -> ImageBlock | AudioBlock | VideoBlock | None:
+		"""Convert an A2A FilePart to a media ContentBlock.
+
+		Args:
+				file_part (`FilePart`):
+						The A2A FilePart to convert.
+
+		Returns:
+				`ImageBlock | AudioBlock | VideoBlock | None`:
+						The converted media block, or `None` if the media type
+						cannot be determined from the MIME type.
+		"""
+		from a2a.types import FileWithUri, FileWithBytes
+
+		file_obj = file_part.file
+
+		# Determine media type from mime_type
+		mime_type = getattr(file_obj, "mime_type", None)
+		block_type = None
+
+		if mime_type:
+			if mime_type.startswith("image/"):
+				block_type = "image"
+			elif mime_type.startswith("audio/"):
+				block_type = "audio"
+			elif mime_type.startswith("video/"):
+				block_type = "video"
+
+		if not block_type or block_type not in ["image", "audio", "video"]:
+			logger.warning(
+					"[%s] Unable to determine media type for FilePart "
+					"(mime_type: %s)",
+					self.__class__.__name__,
+					mime_type,
+			)
+			return None
+
+		# Convert FileWithUri or FileWithBytes to source
+		source = None
+		if isinstance(file_obj, FileWithUri):
+			# URL source
+			source = URLSource(type="url", url=file_obj.uri)
+		elif isinstance(file_obj, FileWithBytes):
+			# Base64 source
+			source = Base64Source(
+					type="base64",
+					media_type=file_obj.mime_type or "application/octet-stream",
+					data=file_obj.bytes,
+			)
+
+		if not source:
+			logger.warning(
+					"[%s] Unable to convert file object to source",
+					self.__class__.__name__,
+			)
+			return None
+
+		# Create appropriate media block
+		if block_type == "image":
+			return ImageBlock(type="image", source=source)
+		elif block_type == "audio":
+			return AudioBlock(type="audio", source=source)
+		elif block_type == "video":
+			return VideoBlock(type="video", source=source)
+
+		return None
+
+	def _convert_msgs_to_a2a_message(self, msgs: list[Msg]) -> A2AMessage:
+		"""Convert a list of AgentScope Msgs to a single A2A Message.
+
+		Args:
+				msgs (`list[Msg]`):
+						List of AgentScope messages to convert and merge.
+
+		Returns:
+				`A2AMessage`:
+						A single A2A Message containing all content from
+						the input messages, with tracking metadata preserved.
+		"""
+		from a2a.types import (
+			Message as A2AMessage,
+			Part,
+			Role as A2ARole,
+			TextPart,
+		)
+
+		merged_parts = []
+		a2a_metadata = {}
+
+		# Process all messages
+		for msg in msgs:
+			if msg is None:
+				continue
+
+			# Store msg metadata in A2A message metadata using msg.id as key
+			if msg.metadata and len(msg.metadata) > 0:
+				a2a_metadata[msg.id] = msg.metadata
+
+			# Prepare part metadata with source information
+			part_metadata = {
+				"_agentscope_msg_source": msg.name,
+				"_agentscope_msg_id": msg.id,
+			}
+
+			# Process message content
+			if isinstance(msg.content, str):
+				# Simple string content - convert to text part with metadata
+				if msg.content.strip():  # Filter empty strings
+					merged_parts.append(
+							Part(
+									root=TextPart(
+											text=msg.content,
+											metadata=part_metadata,
+									),
+							),
+					)
+
+			elif isinstance(msg.content, list):
+				# ContentBlock list - process all types
+				for block in msg.content:
+					part = self._convert_content_block_to_part(block)
+					if part:  # Filter None results
+						# Merge metadata on the part's root object
+						if part.root.metadata:
+							part.root.metadata.update(part_metadata)
+						else:
+							part.root.metadata = part_metadata
+						merged_parts.append(part)
+
+		# If no parts were extracted, add empty text part
+		if not merged_parts:
+			merged_parts.append(Part(root=TextPart(text="", metadata=None)))
+			logger.debug(
+					"[%s] No valid content in messages, using empty text part",
+					self.__class__.__name__,
+			)
+
+		# Build A2A Message with merged content
+		a2a_message = A2AMessage(
+				message_id=str(uuid4()),
+				role=A2ARole.user,
+				parts=merged_parts,
+				metadata=a2a_metadata if a2a_metadata else None,
+		)
+
+		logger.debug(
+				"[%s] Merged %d message(s) into A2A message with %d part(s)",
+				self.__class__.__name__,
+				len(msgs),
+				len(merged_parts),
+		)
+
+		return a2a_message
+
+	def _convert_content_block_to_part(
+			self,
+			block: ContentBlock,
+	) -> Part | None:
+		"""Convert an AgentScope ContentBlock to an A2A Part.
+
+		Args:
+				block (`ContentBlock`):
+						The AgentScope ContentBlock to convert.
+
+		Returns:
+				`Part | None`:
+						The converted A2A Part object, or `None` if the
+						block is empty or of an unsupported type.
+		"""
+		from a2a.types import Part, TextPart, DataPart
+
+		block_type = block["type"]
+
+		# Text and Thinking blocks -> TextPart
+		if block_type == "text":
+			text = block.get("text", "")
+			if text and text.strip():
+				return Part(
+						root=TextPart(
+								text=text,
+								metadata={"_agentscope_block_type": "text"},
+						),
+				)
+			return None
+
+		elif block_type == "thinking":
+			thinking = block.get("thinking", "")
+			if thinking and thinking.strip():
+				return Part(
+						root=TextPart(
+								text=thinking,
+								metadata={"_agentscope_block_type": "thinking"},
+						),
+				)
+			return None
+
+		# Image, Audio, Video blocks -> FilePart
+		elif block_type in ["image", "audio", "video"]:
+			return self._convert_media_block_to_file_part(block, block_type)
+
+		# ToolUse block -> DataPart
+		elif block_type == "tool_use":
+			tool_id = block.get("id")
+			tool_name = block.get("name")
+			tool_input = block.get("input", {})
+
+			return Part(
+					root=DataPart(
+							data=tool_input,  # ToolUse.input → Data.data
+							metadata={
+								"_agentscope_block_type": "tool_use",
+								"_agentscope_tool_name": tool_name,
+								"_agentscope_tool_call_id": tool_id,
+							},
+					),
+			)
+
+		# ToolResult block -> DataPart
+		elif block_type == "tool_result":
+			tool_id = block.get("id")
+			tool_name = block.get("name")
+			tool_output = block.get("output")
+
+			return Part(
+					root=DataPart(
+							data={
+								"_agentscope_tool_output": tool_output,
+							},
+							# ToolResult.output → Data.data._agentscope_tool_output
+							metadata={
+								"_agentscope_block_type": "tool_result",
+								"_agentscope_tool_name": tool_name,
+								"_agentscope_tool_call_id": tool_id,
+							},
+					),
+			)
+
+		# Unknown or unsupported block type
+		else:
+			logger.debug(
+					"[%s] Unsupported content block type: %s",
+					self.__class__.__name__,
+					block_type,
+			)
+			return None
+
+	def _convert_media_block_to_file_part(
+			self,
+			block: ContentBlock,
+			media_type: str,
+	) -> Part | None:
+		"""Convert a media ContentBlock to an A2A FilePart.
+
+		Args:
+				block (`ContentBlock`):
+						The media block (ImageBlock, AudioBlock, VideoBlock).
+				media_type (`str`):
+						The type of media: "image", "audio", or "video".
+
+		Returns:
+				`Part | None`:
+						An A2A Part containing a FilePart, or `None` if the
+						conversion fails.
+		"""
+		from a2a.types import Part, FilePart, FileWithUri, FileWithBytes
+
+		source = block.get("source")
+		if not source:
+			logger.warning(
+					"[%s] %s block missing source",
+					self.__class__.__name__,
+					media_type,
+			)
+			return None
+
+		source_type = source.get("type")
+
+		# URL source -> FileWithUri
+		if source_type == "url":
+			url = source.get("url")
+			if not url:
+				logger.warning(
+						"[%s] %s block with url source missing url",
+						self.__class__.__name__,
+						media_type,
+				)
+				return None
+
+			# Infer mime_type from media_type
+			mime_type = self._infer_mime_type(media_type)
+
+			return Part(
+					root=FilePart(
+							file=FileWithUri(uri=url, mime_type=mime_type),
+					),
+			)
+
+		# Base64 source -> FileWithBytes
+		elif source_type == "base64":
+			data = source.get("data")
+			mime_type = source.get("media_type")
+
+			if not data:
+				logger.warning(
+						"[%s] %s block with base64 source missing data",
+						self.__class__.__name__,
+						media_type,
+				)
+				return None
+
+			# If no mime_type in source, infer from media_type
+			if not mime_type:
+				mime_type = self._infer_mime_type(media_type)
+
+			return Part(
+					root=FilePart(
+							file=FileWithBytes(
+									bytes=data,
+									mime_type=mime_type,
+							),
+					),
+			)
+
+		else:
+			logger.warning(
+					"[%s] Unsupported source type '%s' for %s block",
+					self.__class__.__name__,
+					source_type,
+					media_type,
+			)
+			return None
+
+	def _infer_mime_type(self, media_type: str) -> str:
+		"""Infer a generic MIME type from a media type category.
+
+		Args:
+				media_type (`str`):
+						The media type category: "image", "audio", or "video".
+
+		Returns:
+				`str`:
+						The inferred MIME type (e.g., "image/*", "audio/*",
+						"video/*"), or "application/octet-stream" for
+						unknown types.
+		"""
+		# Return generic MIME type based on media category
+		if media_type == "image":
+			return "image/*"
+		elif media_type == "audio":
+			return "audio/*"
+		elif media_type == "video":
+			return "video/*"
+		else:
+			return "application/octet-stream"
+
+	async def _ensure_ready(self) -> None:
+		"""Ensure the A2A client is initialized and ready for communication.
+
+		Note:
+				This method is idempotent and can be called multiple times
+				safely.
+		"""
+		from a2a.client import ClientFactory
+
+		if self._is_ready and self._a2a_client_factory is not None:
+			return
+
+		agent_card = await self._agent_card_resolver.get_agent_card()
+		await self._validate_agent_card(agent_card)
+		self._agent_card = agent_card
+
+		a2a_client_config = self._extract_a2a_client_config()
+
+		self._a2a_client_factory = ClientFactory(
+				config=a2a_client_config,
+				consumers=self._agent_config.consumers,
+		)
+
+		for (
+				transport_label,
+				transport_producer,
+		) in self._agent_config.additional_transport_producers.items():
+			self._a2a_client_factory.register(
+					transport_label,
+					transport_producer,
+			)
+
+		self._is_ready = True
+
+	def _extract_a2a_client_config(self) -> ClientConfig:
+		"""Extract A2A client configuration from agent config.
+
+		Returns:
+				`ClientConfig`:
+						The extracted client configuration
+												for A2A communication.
+		"""
+		from a2a.client import ClientConfig
+		from a2a.types import TransportProtocol
+
+		a2a_client_config = ClientConfig(
+				streaming=self._agent_config.streaming,
+				polling=self._agent_config.polling,
+				httpx_client=self._agent_config.httpx_client,
+				grpc_channel_factory=self._agent_config.grpc_channel_factory,
+				supported_transports=self._agent_config.supported_transports
+									 or [TransportProtocol.jsonrpc],
+				use_client_preference=self._agent_config.use_client_preference,
+				accepted_output_modes=self._agent_config.accepted_output_modes,
+				push_notification_configs=(
+					self._agent_config.push_notification_configs
+				),
+		)
+
+		return a2a_client_config
 
 	async def _validate_agent_card(self, agent_card: AgentCard) -> None:
-		"""Validate resolved agent card.
-		
+		"""Validate the resolved agent card.
+
 		Args:
-			agent_card: The agent card to validate
-			
+				agent_card (`AgentCard`):
+						The agent card to validate.
+
 		Raises:
-			RuntimeError: If agent card is invalid
+				`RuntimeError`:
+						If the agent card is missing the required URL field.
 		"""
 		if not agent_card.url:
-			logger.error(f"[{self.__class__.__name__}] Agent card missing URL")
+			logger.error(
+					"[%s] Agent card missing URL",
+					self.__class__.__name__,
+			)
 			raise RuntimeError(
-					"Agent card must have a valid URL for RPC communication"
+					"Agent card must have a valid URL for RPC communication",
 			)
 
 		# Validate URL format
 		try:
 			parsed_url = urlparse(str(agent_card.url))
 			if not parsed_url.scheme or not parsed_url.netloc:
-				logger.error(f"[{self.__class__.__name__}] Invalid RPC URL format: {agent_card.url}")
+				logger.error(
+						"[%s] Invalid RPC URL format: %s",
+						self.__class__.__name__,
+						agent_card.url,
+				)
 				raise ValueError("Invalid RPC URL format")
 		except Exception as e:
-			logger.error(f"[{self.__class__.__name__}] Invalid RPC URL in agent card: {agent_card.url}, error: {e}")
+			logger.error(
+					"[%s] Invalid RPC URL in agent card: %s, error: %s",
+					self.__class__.__name__,
+					agent_card.url,
+					e,
+			)
 			raise RuntimeError(
-					f"Invalid RPC URL in agent card: {agent_card.url}, error: {e}"
+					f"Invalid RPC URL in agent card: "
+					f"{agent_card.url}, error: {e}",
 			) from e
-
-
-	async def _get_agent_card(self):
-		if self._use_resolver:
-			return await self._a2a_card_resolver.get_agent_card()
-		else:
-			return self._agent_card
-
-
-	async def reply(self,
-        msg: Msg | list[Msg] | None = None,
-        structured_model: Type[BaseModel] | None = None,) -> Msg:
-		"""Process message(s) and return response from remote A2A agent.
-		
-		This method handles the complete message exchange lifecycle:
-		1. Initialize agent if needed
-		2. Convert AgentScope message(s) to A2A format (merging if list)
-		3. Attach session context (task_id, context_id)
-		4. Send message to remote agent
-		5. Process response (handle both Message and Task responses)
-		6. Convert A2A response back to AgentScope format
-		
-		Message Processing (Phase 1 - Aligned with Java implementation):
-		- Accepts single message or list of messages
-		- Merges all messages into a single A2A message
-		- Combines content parts from all messages
-		- Merges metadata from all messages
-		- Filters out None/empty messages
-		
-		Args:
-			msg: Input message (single Msg or list of Msg). If a list is provided,
-				all messages will be merged into a single A2A message with combined
-				content and metadata.
-			structured_model: Optional structured output model (not yet supported)
-			
-		Returns:
-			Msg: Agent's response message in AgentScope format
-			
-		Raises:
-			RuntimeError: If remote service returns error or task fails
-			ValueError: If message format is invalid or all messages are None/empty
-		"""
-		# 1. Ensure agent is initialized
-		await self._ensure_initialized()
-		
-		# 2. Preprocess message - normalize to list format
-		if msg is None:
-			raise ValueError("msg cannot be None")
-		
-		# Normalize to list for unified processing
-		msgs_list = [msg] if isinstance(msg, Msg) else msg
-		
-		if len(msgs_list) == 0:
-			raise ValueError("msg list cannot be empty")
-		
-		# Filter out None values
-		msgs_list = [m for m in msgs_list if m is not None]
-		
-		if not msgs_list:
-			raise ValueError("All messages in list are None")
-		
-		logger.debug(
-			f"[{self.__class__.__name__}] Processing {len(msgs_list)} message(s) "
-			f"for A2A conversion"
-		)
-		
-		# 3. Convert to A2A Message format - process entire list
-		a2a_message = self._convert_msgs_to_a2a_message(msgs_list)
-		
-		# 4. Attach session context for multi-turn conversation
-		if self._current_task_id:
-			a2a_message.task_id = self._current_task_id
-			logger.debug(f"[{self.__class__.__name__}] Attached task_id: {self._current_task_id}")
-		if self._current_context_id:
-			a2a_message.context_id = self._current_context_id
-			logger.debug(f"[{self.__class__.__name__}] Attached context_id: {self._current_context_id}")
-		
-		# 5. Create A2A client and send message
-		client = self._a2a_client_factory.create(
-			card=await self._get_agent_card()
-		)
-		
-		logger.info(f"[{self.__class__.__name__}] Sending message to remote agent: {self.name}")
-		
-		# 6. Process response stream
-		response_msg = None
-		
-		try:
-			async for item in client.send_message(a2a_message):
-				if isinstance(item, A2AMessage):
-					# Case 1: Direct Message response (non-task mode)
-					# Extract context_id and task_id for session management
-					if item.context_id:
-						self._current_context_id = item.context_id
-						logger.debug(f"[{self.__class__.__name__}] Updated context_id: {self._current_context_id}")
-					if item.task_id:
-						self._current_task_id = item.task_id
-						logger.debug(f"[{self.__class__.__name__}] Updated task_id: {self._current_task_id}")
-					
-					response_msg = self._convert_a2a_message_to_msg(item)
-					logger.info(f"[{self.__class__.__name__}] Received direct message response")
-					break
-					
-				elif isinstance(item, tuple):
-					# Case 2: (Task, UpdateEvent) tuple response
-					task, update = item
-					
-					# Update session state
-					self._current_task_id = task.id
-					self._current_context_id = task.context_id
-					logger.debug(f"[{self.__class__.__name__}] Task update: {task.status.state.value}, task_id: {task.id}")
-					
-					# Check task status
-					if task.status.state == TaskState.completed:
-						# Extract response from completed task
-						response_msg = self._convert_task_to_msg(task)
-						logger.info(f"[{self.__class__.__name__}] Task completed successfully: {task.id}")
-						break
-					else:
-						response_msg = self._convert_task_to_msg(task)
-						logger.debug(f"[{self.__class__.__name__}] Task update: {task.status.state.value}, task_id: {task.id}")
-					
-					# Other states (working, submitted, input_required, etc.) - continue waiting
-		
-		except Exception as e:
-			# Log error and re-raise
-			logger.error(f"[{self.__class__.__name__}] Failed to get response from remote agent: {e}")
-			raise RuntimeError(f"Failed to get response from remote agent: {e}") from e
-		
-		# 7. Return response
-		if response_msg is None:
-			logger.error(f"[{self.__class__.__name__}] No response received from remote agent")
-			raise RuntimeError("No response received from remote agent")
-
-		await self.print(response_msg, True)
-		return response_msg
-	
-	def _convert_content_block_to_part(self, block: Any) -> Part | None:
-		"""Convert AgentScope ContentBlock to A2A Part.
-		
-		Supports various content types and converts them to A2A protocol parts.
-		Currently supports text blocks, with framework for future expansion.
-		
-		Args:
-			block: ContentBlock object from AgentScope message
-			
-		Returns:
-			Part | None: A2A Part object, or None if block is empty/unsupported
-			
-		Note:
-			Future support for ImagePart, FilePart, etc. can be added here.
-		"""
-		# Get block type
-		block_type = getattr(block, 'type', None)
-		
-		if block_type == "text":
-			# Extract text content
-			text = getattr(block, 'text', '')
-			if text and text.strip():
-				return Part(root=TextPart(text=text))
-		
-		elif block_type == "image":
-			# TODO: Add ImagePart support when A2A types are ready
-			logger.warning(
-				f"[{self.__class__.__name__}] Image content block not yet "
-				"supported in A2A conversion"
-			)
-			return None
-		
-		elif block_type == "file":
-			# TODO: Add FilePart support when A2A types are ready
-			logger.warning(
-				f"[{self.__class__.__name__}] File content block not yet "
-				"supported in A2A conversion"
-			)
-			return None
-		
-		# Unknown or unsupported block type
-		if block_type:
-			logger.debug(
-				f"[{self.__class__.__name__}] Unsupported content block type: "
-				f"{block_type}"
-			)
-		
-		return None
-	
-	def _convert_msgs_to_a2a_message(self, msgs: list[Msg]) -> A2AMessage:
-		"""Convert list of AgentScope Msgs to single A2A Message.
-		
-		Merges multiple messages into a single A2A protocol message by:
-		1. Combining all content parts from all messages
-		2. Merging all metadata dictionaries
-		3. Filtering out None/empty messages
-		4. Supporting multimodal content (text, images, etc.)
-		
-		This aligns with the Java implementation which processes entire message lists.
-		
-		Args:
-			msgs: List of AgentScope message objects
-			
-		Returns:
-			A2AMessage: Single A2A protocol message with merged content
-			
-		Raises:
-			ValueError: If all messages are None or empty
-		"""
-		merged_parts = []
-		merged_metadata = {}
-		
-		# Process all messages
-		for msg in msgs:
-			if msg is None:
-				continue
-			
-			# Merge metadata from this message
-			if msg.metadata:
-				merged_metadata.update(msg.metadata)
-			
-			# Process message content
-			if isinstance(msg.content, str):
-				# Simple string content
-				if msg.content.strip():  # Filter empty strings
-					merged_parts.append(Part(root=TextPart(text=msg.content)))
-			
-			elif isinstance(msg.content, list):
-				# ContentBlock list - process all types
-				for block in msg.content:
-					part = self._convert_content_block_to_part(block)
-					if part:  # Filter None results
-						merged_parts.append(part)
-		
-		# If no parts were extracted, add empty text part
-		if not merged_parts:
-			merged_parts.append(Part(root=TextPart(text="")))
-			logger.debug(
-				f"[{self.__class__.__name__}] No valid content found in messages, "
-				"using empty text part"
-			)
-		
-		# Build A2A Message with merged content
-		a2a_message = A2AMessage(
-			message_id=str(uuid4()),
-			role=A2ARole.user,
-			parts=merged_parts,
-			metadata=merged_metadata if merged_metadata else None,
-		)
-		
-		logger.debug(
-			f"[{self.__class__.__name__}] Merged {len(msgs)} message(s) into "
-			f"A2A message with {len(merged_parts)} part(s)"
-		)
-		
-		return a2a_message
-	
-	def _convert_msg_to_a2a_message(self, msg: Msg) -> A2AMessage:
-		"""Convert single AgentScope Msg to A2A Message format.
-		
-		This is a convenience method that wraps _convert_msgs_to_a2a_message
-		for backward compatibility and single message use cases.
-		
-		Args:
-			msg: AgentScope message object
-			
-		Returns:
-			A2AMessage: A2A protocol message object
-		"""
-		return self._convert_msgs_to_a2a_message([msg])
-	
-	def _convert_a2a_message_to_msg(self, a2a_msg: A2AMessage) -> Msg:
-		"""
-		Convert A2A Message to AgentScope Msg
-		
-		Args:
-			a2a_msg: A2A protocol message object
-			
-		Returns:
-			Msg: AgentScope message object
-		"""
-		# Extract text content
-		text_content = self._extract_text_from_parts(a2a_msg.parts)
-		
-		# Role mapping: A2A -> AgentScope
-		# Role.user -> "user"
-		# Role.agent -> "assistant"
-		if a2a_msg.role == A2ARole.user:
-			role = "user"
-		elif a2a_msg.role == A2ARole.agent:
-			role = "assistant"
-		else:
-			role = "assistant"  # default
-		
-		# Build AgentScope Msg
-		# Preserve A2A metadata
-		metadata = a2a_msg.metadata.copy() if a2a_msg.metadata else {}
-		metadata["a2a_message_id"] = a2a_msg.message_id
-		if a2a_msg.task_id:
-			metadata["a2a_task_id"] = a2a_msg.task_id
-		if a2a_msg.context_id:
-			metadata["a2a_context_id"] = a2a_msg.context_id
-		
-		msg = Msg(
-			name=self.name,
-			content=text_content,
-			role=role,
-			metadata=metadata,
-		)
-		
-		return msg
-	
-	def _convert_task_to_msg(self, task: A2ATask) -> Msg:
-		"""
-		Extract final response from A2A Task and convert to Msg
-		
-		Args:
-			task: A2A protocol task object
-			
-		Returns:
-			Msg: AgentScope message object
-		"""
-		text_content = ""
-
-		if task.status.state != TaskState.completed:
-			text_content = f"Task {task.id} status :{task.status.state}"
-			if task.status.message:
-				text_content += "\n"
-				text_content += f"message: {self._extract_text_from_message(task.status.message)}"
-		
-		# 1. Extract text content from artifacts
-		if task.artifacts:
-			artifacts_text = self._extract_text_from_artifacts(task.artifacts)
-			if artifacts_text:
-				if text_content:
-					# If there is already content, append artifacts text
-					text_content += "\n\n" + artifacts_text
-				else:
-					# If there is no content, use artifacts text
-					text_content = artifacts_text
-		
-		# 2. If still no content, use default message
-		if not text_content:
-			text_content = f"Task {task.id} completed"
-		
-		# 3. Build AgentScope Msg metadata
-		metadata = {
-			"a2a_task_id": task.id,
-			"a2a_context_id": task.context_id,
-			"a2a_task_state": task.status.state.value,
-		}
-		
-		# 4. Process artifacts detailed information
-		if task.artifacts:
-			# Save basic information
-			metadata["a2a_artifacts_count"] = len(task.artifacts)
-			metadata["a2a_artifacts"] = [
-				{
-					"id": art.artifact_id,
-					"name": art.name,
-					"description": art.description,
-				}
-				for art in task.artifacts
-			]
-			
-			# Extract and save file information
-			files = self._extract_files_from_artifacts(task.artifacts)
-			if files:
-				metadata["a2a_artifact_files"] = files
-			
-			# Extract and save structured data
-			data = self._extract_data_from_artifacts(task.artifacts)
-			if data:
-				metadata["a2a_artifact_data"] = data
-		
-		msg = Msg(
-			name=self.name,
-			content=text_content,
-			role="assistant",
-			metadata=metadata,
-		)
-		
-		return msg
-	
-	def _extract_text_from_parts(self, parts: list[Part]) -> str:
-		"""
-		Extract text content from A2A Parts
-		
-		Args:
-			parts: A2A Part list
-			
-		Returns:
-			str: Extracted text content
-		"""
-		text_segments = []
-		
-		for part in parts:
-			# Part is a RootModel[TextPart | FilePart | DataPart]
-			# Need to access part.root to get actual content
-			if hasattr(part, 'root'):
-				actual_part = part.root
-			else:
-				actual_part = part
-			
-			# Check if it's TextPart
-			if isinstance(actual_part, TextPart):
-				text_segments.append(actual_part.text)
-			elif hasattr(actual_part, 'kind') and actual_part.kind == 'text':
-				text_segments.append(actual_part.text)
-		
-		return " ".join(text_segments) if text_segments else ""
-	
-	def _extract_text_from_message(self, message: A2AMessage) -> str:
-		"""
-		Extract text content from A2A Message
-		
-		Args:
-			message: A2A message object
-			
-		Returns:
-			str: Extracted text content
-		"""
-		if message.parts:
-			return self._extract_text_from_parts(message.parts)
-		return ""
-	
-	def _extract_text_from_artifacts(self, artifacts: list) -> str:
-		"""
-		Extract text content from artifacts and format display
-		
-		Args:
-			artifacts: Artifact object list
-			
-		Returns:
-			str: Formatted text content
-		"""
-		sections = []
-		
-		for artifact in artifacts:
-			# Extract text content
-			text = self._extract_text_from_parts(artifact.parts)
-			if text:
-				# Format: Add title and description
-				section = ""
-				if artifact.name or artifact.description:
-					section += "=" * 50 + "\n"
-					if artifact.name:
-						section += f"artifact : {artifact.name}\n"
-					if artifact.description:
-						section += f"content  : {artifact.description}\n"
-					section += "=" * 50 + "\n"
-				section += text
-				sections.append(section)
-		
-		return "\n\n".join(sections) if sections else ""
-	
-	def _extract_files_from_artifacts(self, artifacts: list) -> list[dict]:
-		"""
-		Extract file information from artifacts
-		
-		Args:
-			artifacts: Artifact object list
-			
-		Returns:
-			list[dict]: File information list
-		"""
-		files = []
-		
-		for artifact in artifacts:
-			for part in artifact.parts:
-				actual_part = part.root if hasattr(part, 'root') else part
-				
-				# Check if it's FilePart
-				if hasattr(actual_part, 'kind') and actual_part.kind == 'file':
-					file_info = {
-						"artifact_id": artifact.artifact_id,
-						"artifact_name": artifact.name,
-						"artifact_description": artifact.description,
-						"file": actual_part.model_dump() if hasattr(actual_part, 'model_dump') else {}
-					}
-					files.append(file_info)
-		
-		return files
-	
-	def _extract_data_from_artifacts(self, artifacts: list) -> list[dict]:
-		"""
-		Extract structured data from artifacts
-		
-		Args:
-			artifacts: Artifact object list
-			
-		Returns:
-			list[dict]: Structured data list
-		"""
-		data_list = []
-		
-		for artifact in artifacts:
-			for part in artifact.parts:
-				actual_part = part.root if hasattr(part, 'root') else part
-				
-				# Check if it's DataPart
-				if hasattr(actual_part, 'kind') and actual_part.kind == 'data':
-					data_info = {
-						"artifact_id": artifact.artifact_id,
-						"artifact_name": artifact.name,
-						"artifact_description": artifact.description,
-						"data": actual_part.data if hasattr(actual_part, 'data') else {}
-					}
-					data_list.append(data_info)
-		
-		return data_list

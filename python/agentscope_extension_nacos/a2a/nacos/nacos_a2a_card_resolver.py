@@ -1,143 +1,156 @@
-import asyncio
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from a2a.types import AgentCard
-from v2.nacos import ClientConfig
-from v2.nacos.ai.model.ai_param import GetAgentCardParam, SubscribeAgentCardParam
 
-from agentscope_extension_nacos.a2a.a2a_agent import A2ACardResolverBase
-from agentscope_extension_nacos.nacos_service_manager import NacosServiceManager
+from agentscope_extension_nacos.a2a.a2a_card_resolver import \
+	AgentCardResolverBase
 
 # Initialize logger
 logger = logging.getLogger(__name__)
 
 
-class NacosA2ACardResolver(A2ACardResolverBase):
+class NacosAgentCardResolver(AgentCardResolverBase):
 	"""Nacos-based A2A Agent Card resolver.
 
-	Resolves and subscribes to agent cards stored in Nacos service registry.
+	Resolves and subscribes to agent cards stored in Nacos A2A registry.
 	Supports automatic updates when agent cards change in Nacos.
-	Uses NacosServiceManager for connection pooling.
-
-	Args:
-		remote_agent_name: Name of the remote agent in Nacos
-		nacos_client_config: Optional Nacos client config (uses global if None)
-		version: Optional version constraint for the agent card
-
-	Raises:
-		ValueError: If remote_agent_name is empty
 	"""
 
 	def __init__(
 			self,
 			remote_agent_name: str,
-			nacos_client_config: Optional[ClientConfig] = None,
-			version: Optional[str] = None,
+			nacos_client_config: Any | None = None,
+			version: str | None = None,
 	) -> None:
+		"""Initialize the NacosAgentCardResolver.
+
+		Args:
+			remote_agent_name (`str`):
+				Name of the remote agent in Nacos.
+			nacos_client_config (`Any | None`, optional):
+				Nacos client configuration. If None, uses default config.
+				Defaults to None.
+			version (`str | None`, optional):
+				Version constraint for the agent card.
+				Defaults to None.
+
+		Raises:
+			ValueError: If remote_agent_name is empty.
+		"""
 		if not remote_agent_name:
 			raise ValueError("remote_agent_name is required")
 
-		self._nacos_client_config: Optional[ClientConfig] = nacos_client_config
-		self._remote_agent_name: str = remote_agent_name
-		self._version: Optional[str] = version
+		self._nacos_client_config = nacos_client_config
+		self._remote_agent_name = remote_agent_name
+		self._version = version
 
 		# Lazy initialization state
 		self._initialized = False
-		self._initializing = False
-		self._init_lock = asyncio.Lock()
-
+		self._nacos_ai_service: Any | None = None
 		self._agent_card: AgentCard | None = None
 
-		logger.debug(
-			f"[{self.__class__.__name__}] Initialized for agent: {remote_agent_name}")
-
-	async def get_agent_card(
-			self,
-			relative_card_path: str | None = None,
-			http_kwargs: dict[str, Any] | None = None,
-	) -> AgentCard:
+	async def get_agent_card(self) -> AgentCard:
 		"""Get agent card from Nacos with lazy initialization.
 
 		Returns:
-			AgentCard: Resolved agent card from Nacos
+			`AgentCard`:
+				The resolved agent card from Nacos.
+
+		Raises:
+			RuntimeError:
+				If failed to fetch agent card from Nacos.
 		"""
 		await self._ensure_initialized()
+
+		if self._agent_card is None:
+			raise RuntimeError(
+					f"Failed to get agent card for {self._remote_agent_name}",
+			)
+
 		return self._agent_card
 
-	async def initialize(self):
-		"""Public method to trigger explicit initialization."""
-		await self._ensure_initialized()
+	async def _ensure_initialized(self) -> None:
+		"""Ensure the resolver is initialized.
 
-	async def _ensure_initialized(self):
-		"""Ensure the resolver is initialized (thread-safe lazy initialization).
-
-		Uses double-checked locking pattern to avoid multiple initializations.
+		Performs lazy initialization on first call, including:
+		- Creating NacosAIService
+		- Fetching agent card from Nacos
+		- Subscribing to agent card updates
 		"""
 		if self._initialized:
 			return
 
-		# Wait if initialization is in progress
-		if self._initializing:
-			while self._initializing:
-				await asyncio.sleep(0.01)
-			return
+		# Lazy import third-party libraries
+		from v2.nacos.ai.model.ai_param import (
+			GetAgentCardParam,
+			SubscribeAgentCardParam,
+		)
+		from v2.nacos.ai.nacos_ai_service import NacosAIService
 
-		async with self._init_lock:
-			# Double-check to avoid duplicate initialization
-			if self._initialized:
-				return
-
-		self._initializing = True
 		try:
-			logger.info(
-				f"[{self.__class__.__name__}] Initializing for agent: {self._remote_agent_name}")
-			await self._async_init()
+			logger.debug(
+					"[%s] Initializing for agent: %s",
+					self.__class__.__name__,
+					self._remote_agent_name,
+			)
+
+			# Create Nacos AI service
+			self._nacos_ai_service = await NacosAIService.create_ai_service(
+					self._nacos_client_config,
+			)
+
+			# Fetch agent card from Nacos
+			self._agent_card = await self._nacos_ai_service.get_agent_card(
+					GetAgentCardParam(
+							agent_name=self._remote_agent_name,
+							version=self._version,
+					),
+			)
+
+			logger.debug(
+					"[%s] Agent card fetched from Nacos: %s",
+					self.__class__.__name__,
+					self._agent_card.name if self._agent_card else "None",
+			)
+
+			# Subscribe to agent card updates
+			async def agent_card_subscriber(
+					agent_name: str,
+					agent_card: AgentCard,
+			) -> None:
+				"""Callback for agent card updates from Nacos."""
+				logger.debug(
+						"[%s] Agent card updated for %s: %s",
+						self.__class__.__name__,
+						agent_name,
+						agent_card.name,
+				)
+				self._agent_card = agent_card
+
+			await self._nacos_ai_service.subscribe_agent_card(
+					SubscribeAgentCardParam(
+							agent_name=self._remote_agent_name,
+							version=self._version,
+							subscribe_callback=agent_card_subscriber,
+					),
+			)
+
+			logger.debug(
+					"[%s] Subscribed to agent card updates for: %s",
+					self.__class__.__name__,
+					self._remote_agent_name,
+			)
+
 			self._initialized = True
-			logger.info(
-				f"[{self.__class__.__name__}] Initialization completed for agent: {self._remote_agent_name}")
+
 		except Exception as e:
 			logger.error(
-				f"[{self.__class__.__name__}] Failed to initialize: {e}")
-			raise
-		finally:
-			self._initializing = False
-
-	async def _async_init(self):
-		"""Internal async initialization logic.
-
-		Resolves agent card from Nacos and subscribes to updates.
-		Uses NacosServiceManager for connection pooling.
-		"""
-		# Get Nacos AI service with connection pooling
-		manager = NacosServiceManager()
-		self._nacos_ai_service = await manager.get_ai_service(
-				self._nacos_client_config
-		)
-
-		# Fetch agent card from Nacos
-		self._agent_card = await self._nacos_ai_service.get_agent_card(
-				GetAgentCardParam(
-						agent_name=self._remote_agent_name,
-						version=self._version,
-				))
-		logger.info(
-			f"[{self.__class__.__name__}] Agent card fetched from Nacos: {self._agent_card.name}")
-
-		# Subscribe to agent card updates
-		async def agent_card_subscriber(agent_name: str, agent_card: AgentCard):
-			"""Callback for agent card updates from Nacos."""
-			logger.info(
-				f"[{self.__class__.__name__}] Agent card updated for {agent_name}: {agent_card.name}")
-			self._agent_card = agent_card
-
-		await self._nacos_ai_service.subscribe_agent_card(
-				SubscribeAgentCardParam(
-						agent_name=self._remote_agent_name,
-						version=self._version,
-						subscribe_callback=agent_card_subscriber
-				))
-		logger.debug(
-			f"[{self.__class__.__name__}] Subscribed to agent card updates for: {self._remote_agent_name}")
-
-
+					"[%s] Failed to initialize Nacos resolver: %s",
+					self.__class__.__name__,
+					e,
+			)
+			raise RuntimeError(
+					f"Failed to initialize Nacos resolver for "
+					f"{self._remote_agent_name}: {e}",
+			) from e
