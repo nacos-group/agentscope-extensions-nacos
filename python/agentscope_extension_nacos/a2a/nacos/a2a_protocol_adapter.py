@@ -2,16 +2,14 @@
 """
 A2A Protocol Adapter for FastAPI
 
-This module provides the extension A2A (Agent-to-Agent) protocol adapter
+This module provides the default A2A (Agent-to-Agent) protocol adapter
 implementation for FastAPI applications. It handles agent card configuration,
-wellknown endpoint setup, task management, and registry integration.
+wellknown endpoint setup, and task management.
 """
 import logging
 from typing import Any, Callable, Dict, List, Optional, Union
 from urllib.parse import urlparse, urljoin
 
-from agentscope_runtime.engine.deployers.adapter.a2a.a2a_agent_adapter import A2AExecutor
-from agentscope_runtime.engine.deployers.adapter.protocol_adapter import ProtocolAdapter
 from a2a.server.apps import A2AFastAPIApplication
 from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.tasks import InMemoryTaskStore
@@ -22,13 +20,15 @@ from a2a.types import (
     AgentProvider,
 )
 from fastapi import FastAPI
+from pydantic import ConfigDict
 
 from agentscope_runtime.version import __version__ as runtime_version
-
+from .a2a_agent_adapter import A2AExecutor
 from .a2a_registry import (
     A2ARegistry,
     DeployProperties,
     A2ATransportsProperties,
+    create_registry_from_env,
 )
 
 # NOTE: Do NOT import NacosRegistry at module import time to avoid
@@ -36,6 +36,7 @@ from .a2a_registry import (
 # SDK installed. Registry is optional: users must explicitly provide a
 # registry instance if needed.
 # from .nacos_a2a_registry import NacosRegistry
+from ..protocol_adapter import ProtocolAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +122,6 @@ class A2AFastAPIExtensionAdapter(ProtocolAdapter):
         self._agent_name = agent_name
         self._agent_description = agent_description
         self._json_rpc_path = kwargs.get("json_rpc_path", A2A_JSON_RPC_URL)
-        self._base_url = kwargs.get("base_url")
 
         # Convert registry to list for uniform handling
         # Registry is optional: if None, skip registry operations
@@ -155,7 +155,9 @@ class A2AFastAPIExtensionAdapter(ProtocolAdapter):
 
         # Task configuration
         self._task_timeout = task_timeout or DEFAULT_TASK_TIMEOUT
-        self._task_event_timeout = task_event_timeout or DEFAULT_TASK_EVENT_TIMEOUT
+        self._task_event_timeout = (
+            task_event_timeout or DEFAULT_TASK_EVENT_TIMEOUT
+        )
 
         # Wellknown configuration
         self._wellknown_path = wellknown_path or DEFAULT_WELLKNOWN_PATH
@@ -265,7 +267,7 @@ class A2AFastAPIExtensionAdapter(ProtocolAdapter):
         Returns:
             DeployProperties instance
         """
-        root_path = getattr(app, "root_path", "") or ""
+        path = getattr(app, "root_path", "") or ""
         host = None
         port = None
 
@@ -275,14 +277,13 @@ class A2AFastAPIExtensionAdapter(ProtocolAdapter):
             host = parsed.hostname
             port = parsed.port
 
-        excluded_keys = {"host", "port", "root_path", "base_url"}
+        excluded_keys = {"host", "port", "path"}
         extra = {k: v for k, v in kwargs.items() if k not in excluded_keys}
 
         return DeployProperties(
             host=host,
             port=port,
-            root_path=root_path,
-            base_url=self._base_url,
+            path=path,
             extra=extra,
         )
 
@@ -386,7 +387,8 @@ class A2AFastAPIExtensionAdapter(ProtocolAdapter):
         if not parsed.hostname:
             if not parsed.netloc and not parsed.path:
                 logger.warning(
-                    "[A2A] Malformed transport URL (empty netloc " "and path): %s",
+                    "[A2A] Malformed transport URL (empty netloc "
+                    "and path): %s",
                     url,
                 )
             else:
@@ -402,7 +404,6 @@ class A2AFastAPIExtensionAdapter(ProtocolAdapter):
 
         return A2ATransportsProperties(
             transport_type=transport_type,
-            url=url,
             host=host,
             port=port,
             path=path,
@@ -410,7 +411,8 @@ class A2AFastAPIExtensionAdapter(ProtocolAdapter):
 
     def _get_json_rpc_url(self) -> str:
         """Return the full JSON-RPC endpoint URL for this adapter."""
-        base = self._base_url or "http://127.0.0.1:8000"
+        # Use default base URL
+        base = self._card_url or "http://127.0.0.1:8000"
         base_with_slash = base.rstrip("/") + "/"
         return urljoin(base_with_slash, self._json_rpc_path.lstrip("/"))
 
