@@ -30,8 +30,6 @@ import io.agentscope.core.a2a.agent.card.FixedAgentCardResolver;
 import io.agentscope.core.a2a.agent.event.ClientEventContext;
 import io.agentscope.core.a2a.agent.event.ClientEventHandlerRouter;
 import io.agentscope.core.a2a.agent.utils.LoggerUtil;
-import io.agentscope.core.a2a.agent.utils.MessageConvertUtil;
-import io.agentscope.core.agent.Agent;
 import io.agentscope.core.agent.AgentBase;
 import io.agentscope.core.hook.ErrorEvent;
 import io.agentscope.core.hook.Hook;
@@ -43,6 +41,7 @@ import io.agentscope.core.memory.InMemoryMemory;
 import io.agentscope.core.memory.Memory;
 import io.agentscope.core.message.Msg;
 import io.agentscope.core.message.TextBlock;
+import io.agentscope.core.a2a.agent.utils.MessageConvertUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
@@ -54,9 +53,6 @@ import java.util.function.BiConsumer;
 
 /**
  * The implementation of Agent for A2A(Agent2Agent).
- *
- * <p>Agent description should get from AgentCard. If AgentCard get failed, description will be default value from
- * {@link Agent#getDescription()}
  *
  * <p>Example Usage:
  * <pre>{@code
@@ -97,15 +93,23 @@ public class A2aAgent extends AgentBase {
      */
     private ClientEventContext clientEventContext;
     
-    private A2aAgent(String name, String description, boolean checkRunning, Memory memory, List<Hook> hooks,
-            AgentCardResolver agentCardResolver, A2aAgentConfig a2aAgentConfig) {
-        super(name, description, checkRunning, hooks);
+    private A2aAgent(String name, AgentCardResolver agentCardResolver, A2aAgentConfig a2aAgentConfig, Memory memory,
+            List<Hook> hooks) {
+        super(name, null, hooks);
         this.a2aAgentConfig = a2aAgentConfig;
+        if (null == agentCardResolver) {
+            throw new IllegalArgumentException("AgentCardProducer cannot be null");
+        }
         this.agentCardResolver = agentCardResolver;
         this.memory = memory;
         LoggerUtil.debug(log, "A2aAgent init with config: {}", a2aAgentConfig);
         getHooks().add(new A2aClientLifecycleHook());
         this.clientEventHandlerRouter = new ClientEventHandlerRouter();
+    }
+    
+    @Override
+    public String getDescription() {
+        return agentCardResolver.getAgentCard(getName()).description();
     }
     
     @Override
@@ -233,8 +237,6 @@ public class A2aAgent extends AgentBase {
         
         private Memory memory = new InMemoryMemory();
         
-        private boolean checkRunning = true;
-        
         private final List<Hook> hooks = new ArrayList<>();
         
         /**
@@ -307,19 +309,6 @@ public class A2aAgent extends AgentBase {
         }
         
         /**
-         * Set whether to check the running status of the A2aAgent.
-         *
-         * <p>Default is true
-         *
-         * @param checkRunning true to check the running status, false to ignore
-         * @return the current Builder instance for method chaining
-         */
-        public Builder checkRunning(boolean checkRunning) {
-            this.checkRunning = checkRunning;
-            return this;
-        }
-        
-        /**
          * Add a {@link Hook} to the A2aAgent.
          *
          * @param hook the Hook to add
@@ -354,17 +343,7 @@ public class A2aAgent extends AgentBase {
             if (null == this.a2aAgentConfig) {
                 this.a2aAgentConfig = A2aAgentConfig.builder().build();
             }
-            return new A2aAgent(this.name, getDescriptionFromAgentCard(), this.checkRunning, this.memory, this.hooks,
-                    this.agentCardResolver, this.a2aAgentConfig);
-        }
-        
-        private String getDescriptionFromAgentCard() {
-            try {
-                AgentCard agentCard = this.agentCardResolver.getAgentCard(this.name);
-                return null != agentCard ? agentCard.description() : null;
-            } catch (Exception ignored) {
-                return null;
-            }
+            return new A2aAgent(this.name, this.agentCardResolver, this.a2aAgentConfig, this.memory, this.hooks);
         }
     }
 }
