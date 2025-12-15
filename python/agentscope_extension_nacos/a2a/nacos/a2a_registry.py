@@ -25,7 +25,6 @@ from a2a.types import AgentCard
 __all__ = [
     "A2ARegistry",
     "DeployProperties",
-    "A2ATransportsProperties",
     "A2ARegistrySettings",
     "get_registry_settings",
     "create_registry_from_env",
@@ -51,22 +50,6 @@ class DeployProperties:
     extra: Dict[str, Any] = field(default_factory=dict)
 
 
-@dataclass
-class A2ATransportsProperties:
-    """Transport-level configuration for A2A transports.
-
-    Each transport may have transport-specific host/port/path and extra
-    configuration used by the registry implementation.
-    """
-
-    transport_type: str
-    host: Optional[str] = None
-    port: Optional[int] = None
-    path: Optional[str] = None
-    tls: Optional[Dict[str, Any]] = None
-    extra: Dict[str, Any] = field(default_factory=dict)
-
-
 class A2ARegistry(ABC):
     """Abstract base class for A2A registry implementations.
 
@@ -85,12 +68,11 @@ class A2ARegistry(ABC):
         self,
         agent_card: AgentCard,
         deploy_properties: DeployProperties,
-        a2a_transports_properties: List[A2ATransportsProperties],
     ) -> None:
-        """Register an agent/service and its transport endpoints.
+        """Register an agent/service.
 
-        Implementations may register the agent card itself and/or individual
-        transport endpoints depending on their semantics.
+        Implementations may register the agent card itself and/or endpoint
+        depending on their semantics.
         """
         raise NotImplementedError("Subclasses must implement register()")
 
