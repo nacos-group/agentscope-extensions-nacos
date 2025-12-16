@@ -11,7 +11,6 @@ from typing import Any, Callable, Dict, List, Optional, Union
 from urllib.parse import urlparse, urljoin
 
 from a2a.server.apps import A2AFastAPIApplication
-from a2a.server.agent_execution.agent_executor import AgentExecutor
 from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.tasks import InMemoryTaskStore
 from a2a.types import (
@@ -265,7 +264,12 @@ class A2AFastAPIExtensionAdapter(ProtocolAdapter):
         host = None
         port = None
 
-        json_rpc_url = self._get_json_rpc_url()
+        base = self._card_url or "http://127.0.0.1:8000"
+        base_with_slash = base.rstrip("/") + "/"
+        json_rpc_url = urljoin(
+            base_with_slash,
+            self._json_rpc_path.lstrip("/"),
+        )
         if json_rpc_url:
             parsed = urlparse(json_rpc_url)
             host = parsed.hostname
@@ -280,13 +284,6 @@ class A2AFastAPIExtensionAdapter(ProtocolAdapter):
             path=path,
             extra=extra,
         )
-
-    def _get_json_rpc_url(self) -> str:
-        """Return the full JSON-RPC endpoint URL for this adapter."""
-        # Use default base URL
-        base = self._card_url or "http://127.0.0.1:8000"
-        base_with_slash = base.rstrip("/") + "/"
-        return urljoin(base_with_slash, self._json_rpc_path.lstrip("/"))
 
     def _normalize_provider(
         self,
@@ -353,10 +350,18 @@ class A2AFastAPIExtensionAdapter(ProtocolAdapter):
             Configured AgentCard instance
         """
         # Build required fields with defaults
+        # Use default base URL for JSON-RPC endpoint
+        base = self._card_url or "http://127.0.0.1:8000"
+        base_with_slash = base.rstrip("/") + "/"
+        json_rpc_url = urljoin(
+            base_with_slash,
+            self._json_rpc_path.lstrip("/"),
+        )
+
         card_kwargs: Dict[str, Any] = {
             "name": self._agent_name,
             "description": self._agent_description,
-            "url": self._card_url or self._get_json_rpc_url(),
+            "url": self._card_url or json_rpc_url,
             "version": self._card_version or runtime_version,
             "capabilities": AgentCapabilities(
                 streaming=False,
