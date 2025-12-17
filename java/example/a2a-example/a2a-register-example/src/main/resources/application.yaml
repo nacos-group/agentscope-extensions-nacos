@@ -6,3 +6,7 @@ agentscope:
     api-key: ${AI_DASHSCOPE_API_KEY}
   agent:
     name: agentscope-a2a-example-agent
+  a2a:
+    server:
+      nacos:
+        server-addr: 127.0.0.1:8848

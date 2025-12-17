@@ -56,23 +56,13 @@
         </dependency>
         <dependency>
             <groupId>io.agentscope</groupId>
-            <artifactId>agentscope-extensions-a2a-agent</artifactId>
-            <version>${agentscope.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.agentscope</groupId>
-            <artifactId>agentscope-extensions-a2a-server</artifactId>
-            <version>${agentscope.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.agentscope</groupId>
             <artifactId>agentscope-a2a-spring-boot-starter</artifactId>
             <version>${agentscope.version}</version>
         </dependency>
         
         <dependency>
             <groupId>io.agentscope</groupId>
-            <artifactId>agentscope-extensions-a2a-nacos</artifactId>
+            <artifactId>agentscope-a2a-nacos-spring-boot-starter</artifactId>
             <version>${agentscope-extensions.version}</version>
         </dependency>
         
