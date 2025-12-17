@@ -8,9 +8,9 @@ The A2A (Agent-to-Agent) protocol enables communication between agents in a stan
 
 ## Examples Structure
 
-### a2a-register-example
+### a2a-register-runtime-example
 
-This example demonstrates how to register an agent with Nacos service registry.
+This example demonstrates how to register an agent with Nacos service registry by agentscope-runtime-java.
 
 Key components:
 - Spring Boot application exposing an agent service

@@ -114,13 +114,13 @@ public class NacosA2aRegistry {
     private AgentEndpoint buildAgentEndpoint(NacosA2aRegistryTransportProperties transportProperties, String version) {
         AgentEndpoint result = new AgentEndpoint();
         result.setTransport(transportProperties.transport());
-        result.setAddress(transportProperties.endpointAddress());
-        result.setPort(transportProperties.endpointPort());
-        result.setPath(transportProperties.endpointPath());
-        result.setSupportTls(transportProperties.isSupportTls());
+        result.setAddress(transportProperties.host());
+        result.setPort(transportProperties.port());
+        result.setPath(transportProperties.path());
+        result.setSupportTls(transportProperties.supportTls());
         result.setVersion(version);
-        result.setProtocol(transportProperties.endpointProtocol());
-        result.setQuery(transportProperties.endpointQuery());
+        result.setProtocol(transportProperties.protocol());
+        result.setQuery(transportProperties.query());
         return result;
     }
 }

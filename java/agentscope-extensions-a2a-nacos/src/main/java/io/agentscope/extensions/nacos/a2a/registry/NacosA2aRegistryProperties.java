@@ -16,40 +16,65 @@
 
 package io.agentscope.extensions.nacos.a2a.registry;
 
-import com.alibaba.nacos.api.ai.constant.AiConstants;
-
 import java.util.HashMap;
 import java.util.Map;
 
 /**
  * Properties for A2A AgentCard and Endpoint registry to Nacos.
  *
+ * <p>TODO extract transportProperties out from NacosA2aRegistryProperties.
+ *
  * @author xiweng.yy
  */
-public record NacosA2aRegistryProperties(boolean isSetAsLatest, boolean enabledRegisterEndpoint,
+public record NacosA2aRegistryProperties(boolean isSetAsLatest, boolean enabledRegisterEndpoint, String overwritePreferredTransport,
                                          Map<String, NacosA2aRegistryTransportProperties> transportProperties) {
-    
-    public NacosA2aRegistryProperties(boolean isSetAsLatest, boolean enabledRegisterEndpoint) {
-        this(isSetAsLatest, enabledRegisterEndpoint, new HashMap<>());
-    }
-    
-    /**
-     * For support old version which only support DEFAULT transport.
-     *
-     * @deprecated in 1.0.0, please use {@link NacosA2aRegistryTransportProperties#builder()} and
-     * {@link #addTransport(NacosA2aRegistryTransportProperties)}
-     */
-    @Deprecated
-    public NacosA2aRegistryProperties(boolean isSetAsLatest, String endpointAddress, int endpointPort,
-            String endpointPath) {
-        this(isSetAsLatest, true);
-        NacosA2aRegistryTransportProperties defaultJsonRpcTransport = NacosA2aRegistryTransportProperties.builder()
-                .endpointAddress(endpointAddress).endpointPort(endpointPort).endpointPath(endpointPath)
-                .transport(AiConstants.A2a.A2A_ENDPOINT_DEFAULT_TRANSPORT).build();
-        transportProperties.put(AiConstants.A2a.A2A_ENDPOINT_DEFAULT_TRANSPORT, defaultJsonRpcTransport);
-    }
     
     public void addTransport(NacosA2aRegistryTransportProperties transport) {
         transportProperties.put(transport.transport(), transport);
+    }
+    
+    public static Builder builder() {
+        return new Builder();
+    }
+    
+    public static class Builder {
+        
+        private final Map<String, NacosA2aRegistryTransportProperties> transportProperties;
+        
+        private boolean setAsLatest;
+        
+        private boolean enabledRegisterEndpoint;
+        
+        private String overwritePreferredTransport;
+        
+        private Builder() {
+            transportProperties = new HashMap<>();
+            enabledRegisterEndpoint = true;
+        }
+        
+        public Builder setAsLatest(boolean setAsLatest) {
+            this.setAsLatest = setAsLatest;
+            return this;
+        }
+        
+        public Builder enabledRegisterEndpoint(boolean enabledRegisterEndpoint) {
+            this.enabledRegisterEndpoint = enabledRegisterEndpoint;
+            return this;
+        }
+        
+        public Builder overwritePreferredTransport(String overwritePreferredTransport) {
+            this.overwritePreferredTransport = overwritePreferredTransport;
+            return this;
+        }
+        
+        public Builder addTransport(NacosA2aRegistryTransportProperties transport) {
+            transportProperties.put(transport.transport(), transport);
+            return this;
+        }
+        
+        public NacosA2aRegistryProperties build() {
+            return new NacosA2aRegistryProperties(setAsLatest, enabledRegisterEndpoint, overwritePreferredTransport,
+                    transportProperties);
+        }
     }
 }
