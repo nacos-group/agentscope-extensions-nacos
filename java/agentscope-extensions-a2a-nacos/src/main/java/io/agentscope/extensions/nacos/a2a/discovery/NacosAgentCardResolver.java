@@ -25,7 +25,6 @@ import com.alibaba.nacos.api.exception.NacosException;
 import com.alibaba.nacos.api.exception.runtime.NacosRuntimeException;
 import io.a2a.spec.AgentCard;
 import io.agentscope.core.a2a.agent.A2aAgent;
-import io.agentscope.core.a2a.agent.A2aAgentConfig;
 import io.agentscope.core.a2a.agent.card.AgentCardResolver;
 import io.agentscope.extensions.nacos.a2a.utils.AgentCardConverterUtil;
 
@@ -56,7 +55,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * }</pre>
  *
  * @see A2aAgent
- * @see A2aAgentConfig.A2aAgentConfigBuilder
+ * @see A2aAgent.Builder
  * @author xiweng.yy
  */
 public class NacosAgentCardResolver implements AgentCardResolver {

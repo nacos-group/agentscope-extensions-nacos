@@ -6,7 +6,6 @@ This project provides integration between AgentScope and Nacos service discovery
 
 ```
 java/
-├── agentscope-extensions-a2a                                   # Core A2A protocol implementation
 ├── agentscope-extensions-a2a-nacos                             # Nacos integration for A2A protocol
 ├── agentscope-extensions-mcp-nacos                             # Nacos integration for MCP protocol
 ├── example                                                     # Examples demonstrating usage
@@ -16,17 +15,20 @@ java/
     └── spring-boot-starter-agentscope-runtime-a2a-nacos        # Auto-configuration for Spring Boot
 ```
 
+```
+agentscope-extensions-a2a has been contribute into agentscope-java in 1.0.3 version, so remove in this extensions project.
+
+new dependencies:
+
+<dependency>
+    <groupId>io.agentscope</groupId>
+    <artifactId>agentscope-extensions-a2a-agent</artifactId>
+    <!-- upper than 1.0.3 -->
+    <version>${agentscope.version}</version>
+</dependency>
+```
+
 ## Modules Overview
-
-### agentscope-extensions-a2a
-
-Core implementation of the A2A (Agent-to-Agent) protocol for AgentScope. This module provides the base classes for creating and managing A2A agents.
-
-Key features:
-- Implementation of AgentScope's AgentBase for A2A protocol
-- Support for JSON-RPC transport
-- Event handling for client interactions
-- Task management and interruption handling
 
 ### agentscope-extensions-a2a-nacos
 

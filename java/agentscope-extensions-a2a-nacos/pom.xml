@@ -48,8 +48,7 @@
     <dependencies>
         <dependency>
             <groupId>io.agentscope</groupId>
-            <artifactId>agentscope-extensions-a2a</artifactId>
-            <version>${parent.version}</version>
+            <artifactId>agentscope-extensions-a2a-agent</artifactId>
         </dependency>
         <dependency>
             <groupId>io.agentscope</groupId>

@@ -8,7 +8,6 @@ This project provides integration between AgentScope and Nacos service discovery
 ```
 agentscope-extensions-nacos/
 ├── java/                                                           # Java Implementation (Maven)
-│   ├── agentscope-extensions-a2a                                   # Source Code of AgentScope Extension For A2A(Agent2Agent) Protocol Request
 │   ├── agentscope-extensions-a2a-nacos                             # Source Code of AgentScope Extension For A2A(Agent2Agent) Protocol Registry with Nacos (Discovery&Register)
 │   ├── agentscope-extensions-mcp-nacos                             # Source Code of AgentScope Extension For MCP Protocol Registry with Nacos (Discovery)
 │   ├── example                                                     # Example for AgentScope Extension Java Implementation
@@ -24,6 +23,19 @@ agentscope-extensions-nacos/
 ```
 
 ## Java
+
+```
+agentscope-extensions-a2a has been contribute into agentscope-java in 1.0.3 version, so remove in this extensions project.
+
+new dependencies:
+
+<dependency>
+    <groupId>io.agentscope</groupId>
+    <artifactId>agentscope-extensions-a2a-agent</artifactId>
+    <!-- upper than 1.0.3 -->
+    <version>${agentscope.version}</version>
+</dependency>
+```
 
 The Java implementation provides seamless integration between AgentScope and Nacos service discovery. It enables automatic registration and discovery of agents using the A2A (Agent-to-Agent) and MCP (Model Context Protocol) protocols through Nacos.
 
