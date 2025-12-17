@@ -1,2 +1,8 @@
 server:
   port: 8888
+
+agentscope:
+  dashscope:
+    api-key: ${AI_DASHSCOPE_API_KEY}
+  agent:
+    name: agentscope-a2a-example-agent
