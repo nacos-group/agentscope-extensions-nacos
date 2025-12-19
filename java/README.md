@@ -28,6 +28,17 @@ new dependencies:
 </dependency>
 ```
 
+## Version Mapping
+
+To ensure proper functionality, different versions of extensions must be used with specific versions of `agentscope-core` or `agentscope-runtime`. Please refer to the version compatibility matrix below:
+
+| agentscope-extensions-nacos Version | agentscope-core Version | agentscope-runtime Version |
+|-------------------------------------|-------------------------|----------------------------|
+| 1.0.3                               | 1.0.3                   | 1.0.0                      |
+| 1.0.0                               | 1.0.0                   | 1.0.0                      |
+| 0.2.1                               | 0.2.1                   | 0.1.3                      |
+| 0.2.0                               | 0.2.1                   | 0.1.2                      |
+
 ## Modules Overview
 
 ### agentscope-extensions-a2a-nacos
@@ -127,14 +138,27 @@ agentscope:
 
 To discover and communicate with A2A agents:
 
+```xml
+<dependency>
+    <groupId>io.agentscope</groupId>
+    <artifactId>agentscope-core</artifactId>
+    <version>${agentscope.version}</version>
+</dependency>
+<dependency>
+    <groupId>io.agentscope</groupId>
+    <artifactId>agentscope-extensions-a2a-nacos</artifactId>
+    <version>${agentscope-extensions-nacos.version}</version>
+</dependency>
+```
+
 ```java
 Properties properties = new Properties();
 properties.put("serverAddr", "localhost:8848");
-NacosAgentCardProducer producer = new NacosAgentCardProducer(properties);
-A2aAgentConfig config = A2aAgentConfig.builder()
-    .agentCardProducer(producer)
-    .build();
-A2aAgent agent = new A2aAgent("agent-name", config);
+AgentCardResolver producer = new NacosAgentCardResolver(properties);
+A2aAgent agent = A2aAgent.builder()
+        .name("agent-name")
+        .agentCardResolver(agentCardProducer)
+        .build();
 ```
 
 ### MCP Tool Discovery
@@ -149,6 +173,10 @@ NacosMcpClientWrapper client = NacosMcpClientBuilder.create("mcp-server-name", m
 Toolkit toolkit = new NacosToolkit();
 toolkit.registerMcpClient(client).block();
 ```
+
+### More Example
+
+More examples can be found in the [a2a-example](./example/a2a-example) or [mcp-exmaple](./example/mcp-example) directory.
 
 ## Prerequisites
 
