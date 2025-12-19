@@ -8,5 +8,12 @@ agentscope:
     name: agentscope-a2a-example-agent
   a2a:
     server:
+      card:
+        description: "Example of A2A(Agent2Agent) Protocol Agent"
+        provider:
+          organization: Alibaba Nacos
+          url: https://nacos.io
       nacos:
-        server-addr: 127.0.0.1:8848
+        server-addr: ${NACOS_SERVER_ADDRESS:127.0.0.1:8848}
+        username: ${NACOS_USERNAME:nacos}
+        password: ${NACOS_PASSWORD:nacos}

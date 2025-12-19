@@ -33,7 +33,7 @@
         
         <revision>1.0.3-SNAPSHOT</revision>
         <agentscope.version>1.0.3-SNAPSHOT</agentscope.version>
-        <agentscope-runtime.version>1.0.0-BETA1</agentscope-runtime.version>
+        <agentscope-runtime.version>1.0.0</agentscope-runtime.version>
         <agentscope-extensions.version>${revision}</agentscope-extensions.version>
         <spring-boot.version>3.5.7</spring-boot.version>
     </properties>
@@ -74,4 +74,18 @@
             <version>${agentscope-extensions.version}</version>
         </dependency>
     </dependencies>
+    
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <version>${spring-boot.version}</version>
+                <configuration>
+                    <attach>false</attach>
+                    <mainClass>io.agentscope.extensions.nacos.example.A2aServerExampleApplication</mainClass>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>

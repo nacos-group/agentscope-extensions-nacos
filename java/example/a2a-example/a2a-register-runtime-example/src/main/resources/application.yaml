@@ -6,7 +6,7 @@ agentscope:
   a2a:
     server:
       card:
-        description: "Example of A2A(Agent2Agent) Protocol Agent"
+        description: "Example of A2A(Agent2Agent) Protocol Agent With Runtime"
         provider:
           organization: Alibaba Nacos
           url: https://nacos.io
