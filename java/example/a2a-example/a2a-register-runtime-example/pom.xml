@@ -21,10 +21,10 @@
     <modelVersion>4.0.0</modelVersion>
     
     <groupId>io.agentscope</groupId>
-    <artifactId>a2a-register-example</artifactId>
+    <artifactId>a2a-register-runtime-example</artifactId>
     <version>${revision}</version>
     
-    <name>AgentScope Java A2A Register Example</name>
+    <name>AgentScope Java A2A Register Example With Runtime</name>
     
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
@@ -33,43 +33,45 @@
         
         <revision>1.0.3-SNAPSHOT</revision>
         <agentscope.version>1.0.3-SNAPSHOT</agentscope.version>
+        <agentscope-runtime.version>1.0.0</agentscope-runtime.version>
         <agentscope-extensions.version>${revision}</agentscope-extensions.version>
         <spring-boot.version>3.5.7</spring-boot.version>
     </properties>
-    
+
     <dependencies>
         <dependency>
-            <groupId>io.agentscope</groupId>
-            <artifactId>agentscope-core</artifactId>
-            <version>${agentscope.version}</version>
-            <!-- local test, remove before commit -->
-            <exclusions>
-                <exclusion>
-                    <groupId>com.openai</groupId>
-                    <artifactId>openai-java</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>com.anthropic</groupId>
-                    <artifactId>anthropic-java</artifactId>
-                </exclusion>
-            </exclusions>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+            <version>${spring-boot.version}</version>
         </dependency>
-        <dependency>
-            <groupId>io.agentscope</groupId>
-            <artifactId>agentscope-a2a-spring-boot-starter</artifactId>
-            <version>${agentscope.version}</version>
-        </dependency>
-        
-        <dependency>
-            <groupId>io.agentscope</groupId>
-            <artifactId>agentscope-a2a-nacos-spring-boot-starter</artifactId>
-            <version>${agentscope-extensions.version}</version>
-        </dependency>
-        
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
             <version>${spring-boot.version}</version>
+        </dependency>
+        
+        <dependency>
+            <groupId>io.agentscope</groupId>
+            <artifactId>spring-boot-starter-runtime-a2a</artifactId>
+            <version>${agentscope-runtime.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.agentscope</groupId>
+            <artifactId>agentscope-runtime-agentscope</artifactId>
+            <version>${agentscope-runtime.version}</version>
+            <exclusions>
+                <!-- found conflict for jackson-annotation with core and runtime -->
+                <exclusion>
+                    <groupId>com.fasterxml.jackson.core</groupId>
+                    <artifactId>jackson-annotations</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        
+        <dependency>
+            <groupId>io.agentscope</groupId>
+            <artifactId>spring-boot-starter-agentscope-runtime-a2a-nacos</artifactId>
+            <version>${agentscope-extensions.version}</version>
         </dependency>
     </dependencies>
     
@@ -81,7 +83,7 @@
                 <version>${spring-boot.version}</version>
                 <configuration>
                     <attach>false</attach>
-                    <mainClass>io.agentscope.extensions.nacos.example.A2aRegistryExampleApplication</mainClass>
+                    <mainClass>io.agentscope.extensions.nacos.example.A2aServerExampleApplication</mainClass>
                 </configuration>
             </plugin>
         </plugins>

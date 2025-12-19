@@ -55,21 +55,21 @@
     </developers>
     
     <modules>
-        <module>agentscope-extensions-a2a</module>
         <module>agentscope-extensions-a2a-nacos</module>
         <module>agentscope-extensions-mcp-nacos</module>
         <module>spring/spring-boot-starter-agentscope-runtime-a2a-nacos</module>
+        <module>spring/agentscope-a2a-nacos-spring-boot-starter</module>
     </modules>
     
     <properties>
-        <revision>1.0.0</revision>
+        <revision>1.0.3-SNAPSHOT</revision>
         
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <java.version>17</java.version>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         
-        <agentscope.version>1.0.0</agentscope.version>
+        <agentscope.version>1.0.3-SNAPSHOT</agentscope.version>
         <agentscope-runtime.version>1.0.0</agentscope-runtime.version>
         <nacos.version>3.1.1</nacos.version>
         <a2a-java.version>0.3.2.Final</a2a-java.version>
@@ -103,6 +103,21 @@
                         <artifactId>slf4j-simple</artifactId>
                     </exclusion>
                 </exclusions>
+            </dependency>
+            <dependency>
+                <groupId>io.agentscope</groupId>
+                <artifactId>agentscope-extensions-a2a-agent</artifactId>
+                <version>${agentscope.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.agentscope</groupId>
+                <artifactId>agentscope-extensions-a2a-server</artifactId>
+                <version>${agentscope.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.agentscope</groupId>
+                <artifactId>agentscope-a2a-spring-boot-starter</artifactId>
+                <version>${agentscope.version}</version>
             </dependency>
             <dependency>
                 <groupId>io.agentscope</groupId>

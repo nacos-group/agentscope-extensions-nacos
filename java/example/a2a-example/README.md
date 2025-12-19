@@ -10,7 +10,16 @@ The A2A (Agent-to-Agent) protocol enables communication between agents in a stan
 
 ### a2a-register-example
 
-This example demonstrates how to register an agent with Nacos service registry.
+This example demonstrates how to register an agent with Nacos service registry by agentscope-java.
+
+Key components:
+- Spring Boot application exposing an agent service
+- Registration of the agent with Nacos using A2A protocol
+- Configuration via `application.yaml`
+
+### a2a-register-runtime-example
+
+This example demonstrates how to register an agent with Nacos service registry by agentscope-runtime-java.
 
 Key components:
 - Spring Boot application exposing an agent service
@@ -65,7 +74,18 @@ cd a2a-register-example
 mvn spring-boot:run
 ```
 
+or if you want to run with agentscope-runtime-java:
+
+```bash
+cd a2a-register-runtime-example
+mvn spring-boot:run
+```
+
 This will register an agent named `agentscope-a2a-example-agent` with Nacos.
+
+> you also can run `a2a-register-example` and `a2a-register-runtime-example` at the same time.
+> When you run these two examples with same time, Nacos will found to `addistionalInterfaces` (AgentEndpoints)
+> And the example of Discovery will choose random one example to do call.
 
 ### 4. Run the Discovery Example
 

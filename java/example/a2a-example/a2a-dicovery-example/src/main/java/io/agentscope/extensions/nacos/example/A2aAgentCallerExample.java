@@ -21,6 +21,8 @@ import com.alibaba.nacos.api.ai.AiFactory;
 import com.alibaba.nacos.api.ai.AiService;
 import com.alibaba.nacos.api.exception.NacosException;
 import com.alibaba.nacos.common.utils.StringUtils;
+import io.a2a.client.config.ClientConfig;
+import io.agentscope.core.a2a.agent.A2aAgentConfig;
 import io.agentscope.core.message.Msg;
 import io.agentscope.core.message.MsgRole;
 import io.agentscope.core.message.TextBlock;
@@ -40,10 +42,17 @@ public class A2aAgentCallerExample {
     
     private static final String AGENT_RESPONSE_PREFIX = "\u001B[32mAgent>\u001B[0m ";
     
+    // Can change this to false disable streaming.
+    static boolean streaming = true;
+    
     public static void main(String[] args) throws NacosException {
         AiService aiService = buildNacosAiClient();
         AgentCardResolver agentCardResolver = new NacosAgentCardResolver(aiService);
+        // Optional: Configuration for A2a Client.
+        ClientConfig clientConfig = ClientConfig.builder().setStreaming(streaming).build();
         A2aAgent agent = A2aAgent.builder().name("agentscope-a2a-example-agent").agentCardResolver(agentCardResolver)
+                // Optional: Configuration for A2a Agent.
+                .a2aAgentConfig(A2aAgentConfig.builder().clientConfig(clientConfig).build())
                 .build();
         startExample(agent);
     }
@@ -99,7 +108,7 @@ public class A2aAgentCallerExample {
     private static Flux<String> processInput(A2aAgent agent, String input) {
         Msg msg = Msg.builder().role(MsgRole.USER).content(TextBlock.builder().text(input).build()).build();
         return agent.stream(msg).map(event -> {
-            if (event.isLast()) {
+            if (streaming && event.isLast()) {
                 // The last message is whole artifact message result, which has been solved and print in before event handle.
                 // Weather need to handle the last message, depends on the use case.
                 return "";

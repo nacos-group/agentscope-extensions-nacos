@@ -28,9 +28,9 @@ import java.net.URI;
  *
  * @author xiweng.yy
  */
-public record NacosA2aRegistryTransportProperties(String transport, String endpointAddress, int endpointPort,
-                                                  String endpointPath, boolean isSupportTls, String endpointProtocol,
-                                                  String endpointQuery) {
+public record NacosA2aRegistryTransportProperties(String transport, String host, int port,
+                                                  String path, boolean supportTls, String protocol,
+                                                  String query) {
     
     private static final String HTTPS_PROTOCOL = "https";
     
@@ -56,12 +56,12 @@ public record NacosA2aRegistryTransportProperties(String transport, String endpo
         result.transport(agentInterface.transport());
         try {
             URI uri = URI.create(agentInterface.url());
-            result.endpointAddress(uri.getHost()).endpointPort(uri.getPort()).endpointPath(uri.getPath())
-                    .endpointProtocol(uri.getScheme()).endpointQuery(uri.getQuery());
+            result.host(uri.getHost()).port(uri.getPort()).path(uri.getPath())
+                    .protocol(uri.getScheme()).query(uri.getQuery());
             // Check if the protocol is HTTPS and set TLS support flag accordingly
-            if (StringUtils.isNotEmpty(result.endpointProtocol) && HTTPS_PROTOCOL.equalsIgnoreCase(
-                    result.endpointProtocol)) {
-                result.isSupportTls(true);
+            if (StringUtils.isNotEmpty(result.protocol) && HTTPS_PROTOCOL.equalsIgnoreCase(
+                    result.protocol)) {
+                result.supportTls(true);
             }
         } catch (IllegalArgumentException e) {
             throw new NacosRuntimeException(NacosException.INVALID_PARAM, "Invalid URL: " + agentInterface.url(), e);
@@ -73,62 +73,61 @@ public record NacosA2aRegistryTransportProperties(String transport, String endpo
         
         private String transport;
         
-        private String endpointAddress;
+        private String host;
         
-        private int endpointPort;
+        private int port;
         
-        private String endpointPath;
+        private String path;
         
-        private boolean isSupportTls;
+        private boolean supportTls;
         
-        private String endpointProtocol;
+        private String protocol;
         
-        private String endpointQuery;
+        private String query;
         
         public Builder transport(String transport) {
             this.transport = transport;
             return this;
         }
         
-        public Builder endpointAddress(String endpointAddress) {
-            this.endpointAddress = endpointAddress;
+        public Builder host(String host) {
+            this.host = host;
             return this;
         }
         
-        public Builder endpointPort(int endpointPort) {
-            this.endpointPort = endpointPort;
+        public Builder port(int port) {
+            this.port = port;
             return this;
         }
         
-        public Builder endpointPath(String endpointPath) {
-            this.endpointPath = endpointPath;
+        public Builder path(String path) {
+            this.path = path;
             return this;
         }
         
-        public Builder isSupportTls(boolean isSupportTls) {
-            this.isSupportTls = isSupportTls;
+        public Builder supportTls(boolean supportTls) {
+            this.supportTls = supportTls;
             return this;
         }
         
-        public Builder endpointProtocol(String endpointProtocol) {
-            this.endpointProtocol = endpointProtocol;
+        public Builder protocol(String protocol) {
+            this.protocol = protocol;
             return this;
         }
         
-        public Builder endpointQuery(String endpointQuery) {
-            this.endpointQuery = endpointQuery;
+        public Builder query(String query) {
+            this.query = query;
             return this;
         }
         
         public NacosA2aRegistryTransportProperties build() {
             if (StringUtils.isEmpty(transport)) {
-                throw new IllegalArgumentException("A2a Endpoint `Transport` can not be empty.");
+                throw new IllegalArgumentException("A2a Endpoint `transport` can not be empty.");
             }
-            if (StringUtils.isEmpty(endpointAddress)) {
-                throw new IllegalArgumentException("A2a Endpoint `Address` can not be empty.");
+            if (StringUtils.isEmpty(host)) {
+                throw new IllegalArgumentException("A2a Endpoint `host` can not be empty.");
             }
-            return new NacosA2aRegistryTransportProperties(transport, endpointAddress, endpointPort, endpointPath,
-                    isSupportTls, endpointProtocol, endpointQuery);
+            return new NacosA2aRegistryTransportProperties(transport, host, port, path, supportTls, protocol, query);
         }
     }
 }

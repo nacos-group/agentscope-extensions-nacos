@@ -14,23 +14,19 @@
  * limitations under the License.
  */
 
-package io.agentscope.extensions.runtime.a2a.nacos.registry;
+package io.agentscope.extensions.nacos.a2a.registry;
 
+import com.alibaba.nacos.api.ai.AiFactory;
+import com.alibaba.nacos.api.ai.AiService;
 import com.alibaba.nacos.api.ai.constant.AiConstants;
+import com.alibaba.nacos.api.exception.NacosException;
 import com.alibaba.nacos.common.utils.StringUtils;
 import io.a2a.spec.AgentCard;
 import io.a2a.spec.AgentInterface;
 import io.agentscope.core.a2a.agent.utils.LoggerUtil;
-import io.agentscope.extensions.nacos.a2a.registry.NacosA2aRegistry;
-import io.agentscope.extensions.nacos.a2a.registry.NacosA2aRegistryProperties;
-import io.agentscope.extensions.nacos.a2a.registry.NacosA2aRegistryTransportProperties;
-import io.agentscope.extensions.runtime.a2a.nacos.constant.Constants;
-import io.agentscope.extensions.runtime.a2a.nacos.properties.NacosA2aProperties;
-import io.agentscope.extensions.runtime.a2a.nacos.properties.NacosA2aTransportProperties;
-import io.agentscope.extensions.runtime.a2a.nacos.properties.NacosA2aTransportPropertiesEnvParser;
-import io.agentscope.extensions.runtime.a2a.registry.AgentRegistry;
-import io.agentscope.runtime.autoconfigure.DeployProperties;
-import io.agentscope.runtime.protocol.a2a.NetworkUtils;
+import io.agentscope.core.a2a.server.registry.AgentRegistry;
+import io.agentscope.core.a2a.server.transport.TransportProperties;
+import io.agentscope.extensions.nacos.a2a.registry.constants.Constants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,6 +35,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 
 /**
  * The Agent registry for Nacos.
@@ -49,18 +46,13 @@ public class NacosAgentRegistry implements AgentRegistry {
     
     private static final Logger log = LoggerFactory.getLogger(NacosAgentRegistry.class);
     
-    /**
-     * AgentScope export a2a message with fixed path: "/a2a/"
-     */
-    private static final String DEFAULT_ENDPOINT_PATH = "/a2a/";
-    
     private static final String AGENT_INTERFACE_URL_PATTERN = "%s://%s:%s";
     
     private final NacosA2aRegistry nacosA2aRegistry;
     
-    private final NacosA2aProperties nacosA2aProperties;
+    private final NacosA2aRegistryProperties nacosA2aProperties;
     
-    public NacosAgentRegistry(NacosA2aRegistry nacosA2aRegistry, NacosA2aProperties nacosA2aProperties) {
+    private NacosAgentRegistry(NacosA2aRegistry nacosA2aRegistry, NacosA2aRegistryProperties nacosA2aProperties) {
         this.nacosA2aRegistry = nacosA2aRegistry;
         this.nacosA2aProperties = nacosA2aProperties;
     }
@@ -71,97 +63,86 @@ public class NacosAgentRegistry implements AgentRegistry {
     }
     
     @Override
-    public void register(AgentCard agentCard, DeployProperties deployProperties) {
-        NacosA2aRegistryProperties properties = NacosA2aRegistryProperties.builder()
-                .setAsLatest(nacosA2aProperties.isRegisterAsLatest())
-                .enabledRegisterEndpoint(nacosA2aProperties.isEnabledRegisterEndpoint()).build();
-        buildTransportProperties(agentCard, deployProperties).forEach(properties::addTransport);
-        agentCard = tryOverwritePreferredTransport(agentCard, properties);
-        nacosA2aRegistry.registerAgent(agentCard, properties);
+    public void register(AgentCard agentCard, List<TransportProperties> transportProperties) {
+        buildTransportProperties(agentCard, transportProperties).forEach(nacosA2aProperties::addTransport);
+        agentCard = tryOverwritePreferredTransport(agentCard, nacosA2aProperties);
+        nacosA2aRegistry.registerAgent(agentCard, nacosA2aProperties);
     }
     
     private Collection<NacosA2aRegistryTransportProperties> buildTransportProperties(AgentCard agentCard,
-            DeployProperties deployProperties) {
-        Map<String, NacosA2aRegistryTransportProperties> result = parseTransportsFromDeploy(agentCard,
-                deployProperties);
-        getTransportProperties().forEach((transport, properties) -> result.compute(transport, (key, oldValue) -> {
-            String targetTransport = key.toUpperCase();
-            if (null == oldValue) {
-                LoggerUtil.warn(log,
-                        "Transport {} is not export by agentscope, it might cause agentCard include an unavailable endpoint.",
-                        targetTransport);
-                return overwriteAttributes(null, properties, targetTransport);
-            }
-            NacosA2aRegistryTransportProperties newValue = overwriteAttributes(oldValue, properties, targetTransport);
-            LoggerUtil.info(log, "Overwrite attributes for transport {} from {} to {}", targetTransport, oldValue,
-                    newValue);
-            return newValue;
-        }));
+            List<TransportProperties> transportProperties) {
+        Map<String, NacosA2aRegistryTransportProperties> result = parseTransportsFromDeploy(transportProperties);
+        getTransportPropertiesFromEnv().forEach(
+                (transport, properties) -> result.compute(transport, (key, oldValue) -> {
+                    String targetTransport = key.toUpperCase();
+                    if (null == oldValue) {
+                        LoggerUtil.warn(log,
+                                "Transport {} is not export by agentscope, it might cause agentCard include an unavailable endpoint.",
+                                targetTransport);
+                        return overwriteAttributes(null, properties, targetTransport);
+                    }
+                    NacosA2aRegistryTransportProperties newValue = overwriteAttributes(oldValue, properties,
+                            targetTransport);
+                    LoggerUtil.info(log, "Overwrite attributes for transport {} from {} to {}", targetTransport,
+                            oldValue, newValue);
+                    return newValue;
+                }));
         return result.values();
     }
     
-    private Map<String, NacosA2aRegistryTransportProperties> parseTransportsFromDeploy(AgentCard agentCard,
-            DeployProperties deployProperties) {
+    private Map<String, NacosA2aRegistryTransportProperties> parseTransportsFromDeploy(
+            List<TransportProperties> transportProperties) {
         Map<String, NacosA2aRegistryTransportProperties> result = new HashMap<>();
-        NetworkUtils networkUtils = new NetworkUtils(deployProperties);
-        // TODO Support parse multiple transport from agentCard or deploy properties.
-        NacosA2aRegistryTransportProperties defaultTransport = NacosA2aRegistryTransportProperties.builder()
-                .transport(agentCard.preferredTransport()).host(networkUtils.getServerIpAddress())
-                .port(networkUtils.getServerPort()).path(DEFAULT_ENDPOINT_PATH).build();
-        result.put(defaultTransport.transport(), defaultTransport);
-        return result;
-    }
-    
-    private Map<String, NacosA2aTransportProperties> getTransportProperties() {
-        Map<String, NacosA2aTransportProperties> result = new HashMap<>();
-        nacosA2aProperties.getTransports()
-                .forEach((transport, properties) -> result.put(transport.toUpperCase(), properties));
-        new NacosA2aTransportPropertiesEnvParser().getTransportProperties().forEach((transport, properties) -> {
-            result.compute(transport, (key, oldValue) -> {
-                if (null == oldValue) {
-                    return properties;
-                }
-                oldValue.merge(properties);
-                return oldValue;
-            });
+        transportProperties.forEach(each -> {
+            NacosA2aRegistryTransportProperties properties = parseTransportFromTransportProperties(each);
+            result.put(properties.transport(), properties);
         });
         return result;
     }
     
+    private NacosA2aRegistryTransportProperties parseTransportFromTransportProperties(
+            TransportProperties transportProperties) {
+        return NacosA2aRegistryTransportProperties.builder().transport(transportProperties.transportType())
+                .host(transportProperties.host()).port(transportProperties.port()).path(transportProperties.path())
+                .supportTls(transportProperties.supportTls()).build();
+    }
+    
+    private Map<String, NacosA2aRegistryTransportProperties> getTransportPropertiesFromEnv() {
+        return new NacosA2aTransportPropertiesEnvParser().getTransportProperties();
+    }
+    
     private NacosA2aRegistryTransportProperties overwriteAttributes(NacosA2aRegistryTransportProperties oldValue,
-            NacosA2aTransportProperties newValue, String transport) {
+            NacosA2aRegistryTransportProperties newValue, String transport) {
         NacosA2aRegistryTransportProperties.Builder builder = NacosA2aRegistryTransportProperties.builder();
         if (null != oldValue) {
             builder.host(oldValue.host()).port(oldValue.port()).path(oldValue.path()).supportTls(oldValue.supportTls())
                     .protocol(oldValue.protocol()).query(oldValue.query());
         }
-        if (StringUtils.isNotEmpty(newValue.getHost())) {
-            builder.host(newValue.getHost());
+        if (StringUtils.isNotEmpty(newValue.host())) {
+            builder.host(newValue.host());
         }
-        if (newValue.getPort() > 0) {
-            builder.port(newValue.getPort());
+        if (newValue.port() > 0) {
+            builder.port(newValue.port());
         }
-        if (StringUtils.isNotEmpty(newValue.getPath())) {
-            builder.path(newValue.getPath());
+        if (StringUtils.isNotEmpty(newValue.path())) {
+            builder.path(newValue.path());
         }
-        if (StringUtils.isNotEmpty(newValue.getProtocol())) {
-            builder.protocol(newValue.getProtocol());
+        if (StringUtils.isNotEmpty(newValue.protocol())) {
+            builder.protocol(newValue.protocol());
         }
-        if (StringUtils.isNotEmpty(newValue.getQuery())) {
-            builder.query(newValue.getQuery());
+        if (StringUtils.isNotEmpty(newValue.query())) {
+            builder.query(newValue.query());
         }
-        if (null != newValue.isSupportTls()) {
-            builder.supportTls(newValue.isSupportTls());
-        }
+        builder.supportTls(newValue.supportTls());
         builder.transport(transport);
         return builder.build();
     }
     
     private AgentCard tryOverwritePreferredTransport(AgentCard agentCard, NacosA2aRegistryProperties properties) {
-        if (StringUtils.isEmpty(nacosA2aProperties.getOverwritePreferredTransport())) {
+        if (StringUtils.isEmpty(nacosA2aProperties.overwritePreferredTransport())) {
             return agentCard;
         }
-        String preferredTransport = nacosA2aProperties.getOverwritePreferredTransport().toUpperCase();
+        String preferredTransport = nacosA2aProperties.overwritePreferredTransport().toUpperCase();
         LoggerUtil.info(log, "Try to overwrite preferred transport from {} to {}", agentCard.preferredTransport(),
                 preferredTransport);
         if (properties.transportProperties().containsKey(preferredTransport)) {
@@ -211,5 +192,40 @@ public class NacosAgentRegistry implements AgentRegistry {
             return isSupportTls ? Constants.PROTOCOL_TYPE_HTTPS : Constants.PROTOCOL_TYPE_HTTP;
         }
         return protocol;
+    }
+    
+    public static Builder builder(AiService aiService) {
+        return new Builder(aiService);
+    }
+    
+    public static Builder builder(Properties nacosServerProperties) throws NacosException {
+        return new Builder(AiFactory.createAiService(nacosServerProperties));
+    }
+    
+    public static class Builder {
+        
+        private final AiService aiService;
+        
+        private NacosA2aRegistryProperties nacosA2aProperties;
+        
+        private Builder(AiService aiService) {
+            this.aiService = aiService;
+        }
+        
+        public Builder nacosA2aProperties(NacosA2aRegistryProperties nacosA2aProperties) {
+            this.nacosA2aProperties = nacosA2aProperties;
+            return this;
+        }
+        
+        public NacosAgentRegistry build() {
+            if (null == aiService) {
+                throw new IllegalArgumentException("Nacos AI Client can not be null.");
+            }
+            if (null == nacosA2aProperties) {
+                nacosA2aProperties = NacosA2aRegistryProperties.builder().build();
+            }
+            NacosA2aRegistry nacosA2aRegistry = new NacosA2aRegistry(aiService);
+            return new NacosAgentRegistry(nacosA2aRegistry, nacosA2aProperties);
+        }
     }
 }
