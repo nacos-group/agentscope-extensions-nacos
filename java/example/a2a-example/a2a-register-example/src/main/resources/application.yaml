@@ -5,6 +5,7 @@ agentscope:
   dashscope:
     api-key: ${AI_DASHSCOPE_API_KEY}
   agent:
+    enabled: true
     name: agentscope-a2a-example-agent
   a2a:
     server:
