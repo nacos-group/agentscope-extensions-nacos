@@ -178,11 +178,24 @@ if __name__ == "__main__":
 **DataId**: `prompt.json`  
 **配置格式**: JSON
 
+prompt.json 中可以直接填写需要的 Prompt 内容：
+
 ```json
 {
   "prompt": "你是一个有帮助的AI助手，可以回答各种问题。"
 }
 ```
+
+或者引用 MSE Nacos Prompt 管理模块中已经创建的 Prompt
+
+```json
+{
+  "promptRef": "{promptKey}.json"
+}
+```
+
+其中 promptKey 是 MSE Nacos Prompt 管理模块中对应的 Prompt 名称
+
 
 **配置二：模型配置**
 

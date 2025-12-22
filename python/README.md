@@ -178,11 +178,23 @@ Host all agent configurations (prompts, models, tools) in Nacos for unified mana
 **DataId**: `prompt.json`  
 **Format**: JSON
 
+You can directly fill in the desired Prompt content in prompt.json:
+
 ```json
 {
   "prompt": "You are a helpful AI assistant that can answer various questions."
 }
 ```
+
+Or reference an already created Prompt in the MSE Nacos Prompt Management module:
+
+```json
+{
+  "promptRef": "{promptKey}.json"
+}
+```
+
+Where `promptKey` is the corresponding Prompt name in the MSE Nacos Prompt Management module.
 
 **Configuration 2: Model Configuration**
 
