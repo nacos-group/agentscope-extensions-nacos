@@ -22,7 +22,7 @@ new dependencies:
 
 <dependency>
     <groupId>io.agentscope</groupId>
-    <artifactId>agentscope-extensions-a2a-agent</artifactId>
+    <artifactId>agentscope-extensions-a2a-client</artifactId>
     <!-- upper than 1.0.3 -->
     <version>${agentscope.version}</version>
 </dependency>
