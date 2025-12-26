@@ -8,11 +8,15 @@ for A2A protocol adapters.
 """
 import asyncio
 import logging
-from enum import Enum
-from typing import Optional, TYPE_CHECKING, List
+import os
 import threading
+from enum import Enum
+from typing import Any, Optional, TYPE_CHECKING, List
 
 from a2a.types import AgentCard
+from dotenv import find_dotenv, load_dotenv
+from pydantic import ConfigDict
+from pydantic_settings import BaseSettings
 
 # Make the v2.nacos imports optional to avoid hard dependency at
 # module import time.
@@ -36,6 +40,10 @@ else:
 
         _NACOS_SDK_AVAILABLE = True
     except Exception:
+        logging.getLogger(__name__).warning(
+            "[NacosRegistry] Nacos SDK (nacos-sdk-python) is not available. "
+            "Install it with: pip install nacos-sdk-python",
+        )
 
         class ClientConfig:
             pass
@@ -58,10 +66,127 @@ else:
 from .a2a_registry import (  # pylint: disable=wrong-import-position
     A2ARegistry,
     A2ATransportsProperties,
-    DeployProperties,
 )
 
 logger = logging.getLogger(__name__)
+
+
+class NacosSettings(BaseSettings):
+    """Nacos-specific settings loaded from environment variables."""
+
+    NACOS_SERVER_ADDR: str = "localhost:8848"
+    NACOS_USERNAME: Optional[str] = None
+    NACOS_PASSWORD: Optional[str] = None
+    NACOS_NAMESPACE_ID: Optional[str] = None
+    NACOS_ACCESS_KEY: Optional[str] = None
+    NACOS_SECRET_KEY: Optional[str] = None
+
+    model_config = ConfigDict(
+        extra="allow",
+    )
+
+
+_nacos_settings: Optional[NacosSettings] = None
+
+
+def get_nacos_settings() -> NacosSettings:
+    """Return a singleton Nacos settings instance, loading .env files
+    if needed."""
+    global _nacos_settings
+
+    if _nacos_settings is None:
+        dotenv_path = find_dotenv(raise_error_if_not_found=False)
+        if dotenv_path:
+            load_dotenv(dotenv_path, override=False)
+        else:
+            if os.path.exists(".env.example"):
+                load_dotenv(".env.example", override=False)
+        _nacos_settings = NacosSettings()
+
+    return _nacos_settings
+
+
+def _build_nacos_client_config(settings: NacosSettings) -> Any:
+    """Build Nacos client configuration from settings.
+
+    Supports both username/password and access key authentication.
+    """
+    try:
+        from v2.nacos import ClientConfigBuilder
+    except (ImportError, ModuleNotFoundError) as e:
+        logger.warning(
+            "[A2A] Nacos SDK (nacos-sdk-python) is not available. "
+            "Install it with: pip install nacos-sdk-python",
+        )
+        raise ImportError(
+            "Nacos SDK (nacos-sdk-python) is not available. "
+            "Install it with: pip install nacos-sdk-python",
+        ) from e
+
+    builder = ClientConfigBuilder().server_address(settings.NACOS_SERVER_ADDR)
+
+    if settings.NACOS_NAMESPACE_ID:
+        builder.namespace_id(settings.NACOS_NAMESPACE_ID)
+        logger.debug(
+            "[A2A] Using Nacos namespace: %s",
+            settings.NACOS_NAMESPACE_ID,
+        )
+
+    if settings.NACOS_USERNAME and settings.NACOS_PASSWORD:
+        builder.username(settings.NACOS_USERNAME).password(
+            settings.NACOS_PASSWORD,
+        )
+        logger.debug("[A2A] Using Nacos username/password authentication")
+
+    if settings.NACOS_ACCESS_KEY and settings.NACOS_SECRET_KEY:
+        builder.access_key(settings.NACOS_ACCESS_KEY).secret_key(
+            settings.NACOS_SECRET_KEY,
+        )
+        logger.debug("[A2A] Using Nacos access key authentication")
+
+    return builder.build()
+
+
+def create_nacos_registry_from_env() -> Optional[A2ARegistry]:
+    """Create a NacosRegistry instance from environment settings.
+
+    Returns None if the required nacos SDK is not available or
+    construction fails.
+    """
+    if not _NACOS_SDK_AVAILABLE:
+        return None
+
+    try:
+        nacos_settings = get_nacos_settings()
+        nacos_client_config = _build_nacos_client_config(nacos_settings)
+        registry = NacosRegistry(nacos_client_config=nacos_client_config)
+
+        auth_methods = []
+        if nacos_settings.NACOS_USERNAME and nacos_settings.NACOS_PASSWORD:
+            auth_methods.append("username/password")
+        if nacos_settings.NACOS_ACCESS_KEY and nacos_settings.NACOS_SECRET_KEY:
+            auth_methods.append("access_key")
+        auth_status = ", ".join(auth_methods) if auth_methods else "disabled"
+
+        namespace_info = (
+            f", namespace={nacos_settings.NACOS_NAMESPACE_ID}"
+            if nacos_settings.NACOS_NAMESPACE_ID
+            else ""
+        )
+        logger.info(
+            f"[A2A] Created Nacos registry from environment: "
+            f"server={nacos_settings.NACOS_SERVER_ADDR}, "
+            f"authentication={auth_status}{namespace_info}",
+        )
+        return registry
+    except (ImportError, ModuleNotFoundError):
+        return None
+    except Exception:
+        logger.warning(
+            "[A2A] Failed to construct Nacos registry from settings",
+            exc_info=True,
+        )
+        return None
 
 
 class RegistrationStatus(Enum):
@@ -112,8 +237,9 @@ class NacosRegistry(A2ARegistry):
     def register(
         self,
         agent_card: AgentCard,
-        deploy_properties: DeployProperties,
-        a2a_transports_properties: Optional[List[A2ATransportsProperties]] = None,
+        a2a_transports_properties: Optional[
+            List[A2ATransportsProperties]
+        ] = None,
     ) -> None:
         """Register an A2A agent service to Nacos.
 
@@ -124,89 +250,27 @@ class NacosRegistry(A2ARegistry):
 
         Args:
             agent_card: The complete A2A agent card generated by runtime
-            deploy_properties: Deployment properties including host,
-                port, path (fallback values)
             a2a_transports_properties: List of transport configurations.
                 Each transport will be registered separately.
         """
-        # If Nacos SDK is not available, log and return
         if not _NACOS_SDK_AVAILABLE:
-            logger.debug(
-                "[NacosRegistry] Nacos SDK is not available; "
-                "skipping registration",
+            logger.warning(
+                "[NacosRegistry] Nacos SDK (nacos-sdk-python) is not "
+                "available. Install it with: pip install nacos-sdk-python",
             )
             return
 
-        # If no transports provided, use deploy_properties as fallback
-        if not a2a_transports_properties:
-            host = deploy_properties.host or "127.0.0.1"
-            port = deploy_properties.port
-            path = ""
-
-            if port is None:
-                logger.warning(
-                    "[NacosRegistry] Port not specified in deploy_properties, "
-                    "skipping endpoint registration",
-                )
-                return
-
-            logger.info(
-                "[NacosRegistry] Registering agent=%s at %s:%s%s "
-                "(using deploy_properties)",
-                agent_card.name,
-                host,
-                port,
-                path,
-            )
-
-            self._start_register_task(
-                agent_card=agent_card,
-                host=host,
-                port=port,
-                path=path,
-            )
-            return
-
-        # Register each transport separately
-        for idx, transport in enumerate(a2a_transports_properties):
-            # Priority: use transport values, fallback to deploy_properties
-            host = transport.host or deploy_properties.host or "127.0.0.1"
-            port = transport.port or deploy_properties.port
-            path = transport.path or ""
-
-            if port is None:
-                logger.warning(
-                    "[NacosRegistry] Port not specified for transport #%d, "
-                    "skipping this transport",
-                    idx,
-                )
-                continue
-
-            logger.info(
-                "[NacosRegistry] Registering agent=%s transport #%d at %s:%s%s "
-                "(type=%s, tls=%s)",
-                agent_card.name,
-                idx,
-                host,
-                port,
-                path,
-                transport.transport_type,
-                transport.support_tls,
-            )
-
-            self._start_register_task(
-                agent_card=agent_card,
-                host=host,
-                port=port,
-                path=path,
-            )
+        self._start_register_task(
+            agent_card=agent_card,
+            a2a_transports_properties=a2a_transports_properties,
+        )
 
     def _start_register_task(
         self,
         agent_card: AgentCard,
-        host: str,
-        port: int,
-        path: str,
+        a2a_transports_properties: Optional[
+            List[A2ATransportsProperties]
+        ] = None,
     ) -> None:
         """Start background Nacos registration task.
 
@@ -215,11 +279,7 @@ class NacosRegistry(A2ARegistry):
         thread and run the registration using asyncio.run so
         registration still occurs in synchronous contexts.
         """
-        # All status checks and updates must be within the lock to
-        # ensure atomicity
         with self._registration_lock:
-            # Check if shutdown was already requested (inside lock
-            # for atomicity)
             if self._shutdown_event.is_set():
                 logger.info(
                     "[NacosRegistry] Shutdown already requested, "
@@ -228,7 +288,6 @@ class NacosRegistry(A2ARegistry):
                 self._registration_status = RegistrationStatus.CANCELLED
                 return
 
-            # Check if registration is already in progress or completed
             if self._registration_status in (
                 RegistrationStatus.IN_PROGRESS,
                 RegistrationStatus.COMPLETED,
@@ -245,8 +304,6 @@ class NacosRegistry(A2ARegistry):
             try:
                 loop = asyncio.get_running_loop()
             except RuntimeError:
-                # No running loop in this thread; we'll fall back to a
-                # background thread
                 loop = None
 
             if loop is not None:
@@ -255,9 +312,7 @@ class NacosRegistry(A2ARegistry):
                 self._register_task = loop.create_task(
                     self._register_to_nacos(
                         agent_card=agent_card,
-                        host=host,
-                        port=port,
-                        path=path,
+                        a2a_transports_properties=a2a_transports_properties,
                     ),
                 )
                 logger.info(
@@ -266,7 +321,6 @@ class NacosRegistry(A2ARegistry):
                 )
                 return
 
-            # No running loop: use a background thread to run asyncio.run
             def _thread_runner():
                 try:
                     with self._registration_lock:
@@ -286,9 +340,9 @@ class NacosRegistry(A2ARegistry):
                     asyncio.run(
                         self._register_to_nacos(
                             agent_card=agent_card,
-                            host=host,
-                            port=port,
-                            path=path,
+                            a2a_transports_properties=(
+                                a2a_transports_properties
+                            ),
                         ),
                     )
                     with self._registration_lock:
@@ -320,8 +374,6 @@ class NacosRegistry(A2ARegistry):
                 daemon=True,
             )
             thread.start()
-            # Store thread reference after successful start for
-            # proper tracking and cleanup
             with self._registration_lock:
                 self._register_thread = thread
             logger.info(
@@ -345,23 +397,16 @@ class NacosRegistry(A2ARegistry):
         if self._nacos_client_config is not None:
             return self._nacos_client_config
 
-        # Use centralized config builder from a2a_registry module
-        # This ensures consistent behavior with env-based registry creation
-        from .a2a_registry import (
-            get_registry_settings,
-            _build_nacos_client_config,
-        )
-
-        settings = get_registry_settings()
+        settings = get_nacos_settings()
         return _build_nacos_client_config(settings)
 
-    # pylint: disable=too-many-branches
+    # pylint: disable=too-many-branches,too-many-statements
     async def _register_to_nacos(
         self,
         agent_card: AgentCard,
-        host: str,
-        port: int,
-        path: str,
+        a2a_transports_properties: Optional[
+            List[A2ATransportsProperties]
+        ] = None,
     ) -> None:
         """Register agent to Nacos.
 
@@ -379,9 +424,8 @@ class NacosRegistry(A2ARegistry):
 
         Args:
             agent_card: The A2A agent card to register
-            host: Server host address
-            port: Server port
-            path: Application path
+            a2a_transports_properties: Optional list of transport
+                configurations
 
         Raises:
             asyncio.CancelledError: If the registration task is cancelled
@@ -432,24 +476,31 @@ class NacosRegistry(A2ARegistry):
                 return
 
             # Register agent endpoint
-            endpoint_param = RegisterAgentEndpointParam(
-                agent_name=agent_card.name,
-                version=agent_card.version,
-                address=host,
-                port=port,
-                path=path,
-            )
-            await self._nacos_ai_service.register_agent_endpoint(
-                endpoint_param,
-            )
-            logger.info(
-                "[NacosRegistry] Agent endpoint registered: "
-                "agent=%s, address=%s:%s, path=%s",
-                agent_card.name,
-                host,
-                port,
-                path,
-            )
+            if a2a_transports_properties:
+                for transport in a2a_transports_properties:
+                    host = transport.host
+                    port = transport.port
+                    endpoint_param = RegisterAgentEndpointParam(
+                        agent_name=agent_card.name,
+                        version=agent_card.version,
+                        address=host,
+                        port=port,
+                        path=transport.path,
+                        support_tls=transport.support_tls,
+                        transport=transport.transport_type,
+                    )
+
+                    await self._nacos_ai_service.register_agent_endpoint(
+                        endpoint_param,
+                    )
+                    logger.info(
+                        "[NacosRegistry] Agent endpoint registered: "
+                        "agent=%s, address=%s:%s, path=%s",
+                        agent_card.name,
+                        host,
+                        port,
+                        transport.path,
+                    )
 
             with self._registration_lock:
                 if self._registration_status == RegistrationStatus.IN_PROGRESS:

@@ -6,9 +6,10 @@ This module provides the default A2A (Agent-to-Agent) protocol adapter
 implementation for FastAPI applications. It handles agent card configuration,
 wellknown endpoint setup, and task management.
 """
+import os
 import logging
 from typing import Any, Callable, Dict, List, Optional, Union
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urljoin
 
 from a2a.server.apps import A2AFastAPIApplication
 from a2a.server.request_handlers import DefaultRequestHandler
@@ -16,15 +17,15 @@ from a2a.server.tasks import InMemoryTaskStore
 from a2a.types import (
     AgentCapabilities,
     AgentCard,
-    AgentInterface,
-    AgentProvider,
     AgentSkill,
-    SecurityScheme,
 )
+from agentscope_runtime.engine.deployers.adapter.a2a import AgentCardWithRuntimeConfig
 from fastapi import FastAPI
-from pydantic import ConfigDict
 
-from agentscope_runtime.version import __version__ as runtime_version
+from agentscope_runtime.engine.deployers.utils.net_utils import (
+    get_first_non_loopback_ip,
+)
+
 from agentscope_runtime.engine.deployers.adapter.a2a.a2a_agent_adapter import (
     A2AExecutor,
 )
@@ -34,8 +35,6 @@ from agentscope_runtime.engine.deployers.adapter.protocol_adapter import (
 from .a2a_registry import (
     A2ARegistry,
     A2ATransportsProperties,
-    DeployProperties,
-    create_registry_from_env,
 )
 
 # NOTE: Do NOT import NacosRegistry at module import time to avoid
@@ -52,6 +51,8 @@ DEFAULT_TASK_TIMEOUT = 60
 DEFAULT_TASK_EVENT_TIMEOUT = 10
 DEFAULT_TRANSPORT = "JSONRPC"
 DEFAULT_INPUT_OUTPUT_MODES = ["text"]
+PORT = int(os.getenv("PORT", "8080"))
+AGENT_VERSION = "1.0.0"
 
 
 class A2AFastAPIExtensionAdapter(ProtocolAdapter):
@@ -64,71 +65,65 @@ class A2AFastAPIExtensionAdapter(ProtocolAdapter):
     """
 
     def __init__(
-            self,
-            agent_name: str,
-            agent_description: str,
-            registry: Optional[Union[A2ARegistry, List[A2ARegistry]]] = None,
-            # AgentCard configuration
-            card_url: Optional[str] = None,
-            preferred_transport: Optional[str] = None,
-            additional_interfaces: list[AgentInterface] | None = None,
-            card_version: Optional[str] = None,
-            skills: Optional[List[AgentSkill]] = None,
-            default_input_modes: Optional[List[str]] = None,
-            default_output_modes: Optional[List[str]] = None,
-            provider: Optional[Union[str, Dict[str, Any], AgentProvider]] = None,
-            documentation_url: Optional[str] = None,
-            icon_url: Optional[str] = None,
-            security_schemes: dict[str, SecurityScheme] | None = None,
-            security: Optional[Dict[str, Any]] = None,
-            # Task configuration
-            task_timeout: Optional[int] = None,
-            task_event_timeout: Optional[int] = None,
-            # Wellknown configuration
-            wellknown_path: Optional[str] = None,
-            **kwargs: Any,
+        self,
+        agent_name: str,
+        agent_description: str,
+        a2a_config: Optional[AgentCardWithRuntimeConfig] = None,
+        **kwargs: Any,
     ) -> None:
         """Initialize A2A protocol adapter.
 
         Args:
-            agent_name: Agent name used in card
-            agent_description: Agent description used in card
-            registry: Optional A2A registry or list of registry instances
-                for service discovery. If None, registry operations
-                will be skipped.
-            card_url: Override agent card URL (default: auto-generated)
-            preferred_transport: Preferred transport type (default: "JSONRPC")
-            additional_interfaces: Additional transport interfaces
-            card_version: Agent card version (default: runtime version)
-            skills: List of agent skills (default: empty list)
-            default_input_modes: Default input modes (default: ["text"])
-            default_output_modes: Default output modes (default: ["text"])
-            provider: Provider info (str/dict/AgentProvider,
-                str converted to dict)
-            documentation_url: Documentation URL
-            icon_url: Icon URL
-            security_schemes: Security schemes configuration
-            security: Security requirement configuration
-            task_timeout: Task completion timeout in seconds (default: 60)
-            task_event_timeout: Task event timeout in seconds
-                (default: 10)
-            wellknown_path: Wellknown endpoint path
-                (default: "/.wellknown/agent-card.json")
-            **kwargs: Additional arguments passed to parent class
+            agent_name: Agent name
+                (fallback if not in a2a_config.agent_card)
+            agent_description: Agent description
+                (fallback if not in a2a_config.agent_card)
+            a2a_config: Runtime configuration with AgentCard and runtime
+                settings
+            **kwargs: Additional arguments for parent class
         """
         super().__init__(**kwargs)
-        self._agent_name = agent_name
-        self._agent_description = agent_description
         self._json_rpc_path = kwargs.get("json_rpc_path", A2A_JSON_RPC_URL)
 
-        # Convert registry to list for uniform handling
-        # Registry is optional: if None, skip registry operations
+        if a2a_config is None:
+            a2a_config = AgentCardWithRuntimeConfig()
+        self._a2a_config = a2a_config
+
+        # Extract name/description from agent_card, fallback to parameters
+        agent_card_name = None
+        agent_card_description = None
+        if a2a_config.agent_card is not None:
+            if isinstance(a2a_config.agent_card, dict):
+                agent_card_name = a2a_config.agent_card.get("name")
+                agent_card_description = a2a_config.agent_card.get(
+                    "description",
+                )
+            elif isinstance(a2a_config.agent_card, AgentCard):
+                agent_card_name = getattr(a2a_config.agent_card, "name", None)
+                agent_card_description = getattr(
+                    a2a_config.agent_card,
+                    "description",
+                    None,
+                )
+
+        self._agent_name = (
+            agent_card_name if agent_card_name is not None else agent_name
+        )
+        self._agent_description = (
+            agent_card_description
+            if agent_card_description is not None
+            else agent_description
+        )
+        self._host = a2a_config.host or get_first_non_loopback_ip()
+        self._port = a2a_config.port
+
+        # Normalize registry to list
+        registry = a2a_config.registry
         if registry is None:
             self._registry: List[A2ARegistry] = []
         elif isinstance(registry, A2ARegistry):
             self._registry = [registry]
         elif isinstance(registry, list):
-            # Validate all items in list are A2ARegistry instances
             if not all(isinstance(r, A2ARegistry) for r in registry):
                 error_msg = (
                     "[A2A] Invalid registry list: all items must be "
@@ -137,42 +132,20 @@ class A2AFastAPIExtensionAdapter(ProtocolAdapter):
                 logger.error(error_msg)
                 raise TypeError(error_msg)
             self._registry = registry
-        else:
-            error_msg = (
-                f"[A2A] Invalid registry type: expected None, A2ARegistry, "
-                f"or List[A2ARegistry], got {type(registry).__name__}"
-            )
-            logger.error(error_msg)
-            raise TypeError(error_msg)
 
-        # AgentCard configuration
-        self._card_url = card_url
-        self._preferred_transport = preferred_transport
-        self._additional_interfaces = additional_interfaces
-        self._card_version = card_version
-        self._skills = skills
-        self._default_input_modes = default_input_modes
-        self._default_output_modes = default_output_modes
-        self._provider = provider
-        self._documentation_url = documentation_url
-        self._icon_url = icon_url
-        self._security_schemes = security_schemes
-        self._security = security
-
-        # Task configuration
-        self._task_timeout = task_timeout or DEFAULT_TASK_TIMEOUT
+        self._task_timeout = a2a_config.task_timeout or DEFAULT_TASK_TIMEOUT
         self._task_event_timeout = (
-                task_event_timeout or DEFAULT_TASK_EVENT_TIMEOUT
+            a2a_config.task_event_timeout or DEFAULT_TASK_EVENT_TIMEOUT
+        )
+        self._wellknown_path = (
+            a2a_config.wellknown_path or DEFAULT_WELLKNOWN_PATH
         )
 
-        # Wellknown configuration
-        self._wellknown_path = wellknown_path or DEFAULT_WELLKNOWN_PATH
-
     def add_endpoint(
-            self,
-            app: FastAPI,
-            func: Callable,
-            **kwargs: Any,
+        self,
+        app: FastAPI,
+        func: Callable,
+        **kwargs: Any,
     ) -> None:
         """Add A2A protocol endpoints to FastAPI application.
 
@@ -203,14 +176,12 @@ class A2AFastAPIExtensionAdapter(ProtocolAdapter):
             self._register_with_all_registries(
                 agent_card=agent_card,
                 app=app,
-                **kwargs,
             )
 
     def _register_with_all_registries(
-            self,
-            agent_card: AgentCard,
-            app: FastAPI,
-            **kwargs: Any,
+        self,
+        agent_card: AgentCard,
+        app: FastAPI,
     ) -> None:
         """Register agent with all configured registry instances.
 
@@ -219,13 +190,9 @@ class A2AFastAPIExtensionAdapter(ProtocolAdapter):
         Args:
             agent_card: The generated AgentCard
             app: FastAPI application instance
-            **kwargs: Additional arguments
         """
-        deploy_properties = self._build_deploy_properties(app, **kwargs)
         a2a_transports_properties = self._build_a2a_transports_properties(
-            agent_card=agent_card,
             app=app,
-            **kwargs,
         )
 
         for registry in self._registry:
@@ -237,7 +204,6 @@ class A2AFastAPIExtensionAdapter(ProtocolAdapter):
                 )
                 registry.register(
                     agent_card=agent_card,
-                    deploy_properties=deploy_properties,
                     a2a_transports_properties=a2a_transports_properties,
                 )
                 logger.info(
@@ -253,217 +219,201 @@ class A2AFastAPIExtensionAdapter(ProtocolAdapter):
                     exc_info=True,
                 )
 
-    def _build_deploy_properties(
-            self,
-            app: FastAPI,
-            **kwargs: Any,
-    ) -> DeployProperties:
-        """Build DeployProperties from runtime configuration.
-
-        Args:
-            app: FastAPI application instance
-            **kwargs: Additional arguments
-
-        Returns:
-            DeployProperties instance
-        """
-        host = None
-        port = None
-
-        # Inline _get_json_rpc_url() logic
-        base = self._card_url or "http://127.0.0.1:8000"
-        base_with_slash = base.rstrip("/") + "/"
-        json_rpc_url = urljoin(
-            base_with_slash,
-            self._json_rpc_path.lstrip("/"),
-        )
-        if json_rpc_url:
-            parsed = urlparse(json_rpc_url)
-            host = parsed.hostname
-            port = parsed.port
-
-        excluded_keys = {"host", "port", "path"}
-        extra = {k: v for k, v in kwargs.items() if k not in excluded_keys}
-
-        return DeployProperties(
-            host=host,
-            port=port,
-            extra=extra,
-        )
-
     def _build_a2a_transports_properties(
-            self,
-            agent_card: AgentCard,
-            app: FastAPI,
-            **kwargs: Any,
+        self,
+        app: FastAPI,
     ) -> List[A2ATransportsProperties]:
-        """Build A2ATransportsProperties list from agent card and runtime config.
+        """Build A2ATransportsProperties from runtime configuration.
 
         Args:
-            agent_card: The generated AgentCard
             app: FastAPI application instance
-            **kwargs: Additional arguments
 
         Returns:
-            List of A2aTransportsProperties instances
+            List of A2ATransportsProperties instances
         """
         transports_list = []
 
-        # Build primary transport from card URL
-        base = self._card_url or "http://127.0.0.1:8000"
-        base_with_slash = base.rstrip("/") + "/"
-        json_rpc_url = urljoin(
-            base_with_slash,
+        path = getattr(app, "root_path", "")
+        json_rpc = urljoin(
+            path.rstrip("/") + "/",
             self._json_rpc_path.lstrip("/"),
         )
 
-        if json_rpc_url:
-            parsed = urlparse(json_rpc_url)
-            path = getattr(app, "root_path", "") or ""
-            support_tls = parsed.scheme == "https"
-
-            primary_transport = A2ATransportsProperties(
-                host=parsed.hostname,
-                port=parsed.port,
-                path=path,
-                support_tls=support_tls,
-                extra={},
-                transport_type="grpc",
-            )
-            transports_list.append(primary_transport)
-
-        # Add additional interfaces if configured
-        if self._additional_interfaces:
-            for interface in self._additional_interfaces:
-                if hasattr(interface, "url"):
-                    parsed = urlparse(interface.url)
-                    transport = A2ATransportsProperties(
-                        host=parsed.hostname,
-                        port=parsed.port,
-                        path=parsed.path or "",
-                        support_tls=parsed.scheme == "https",
-                        extra={},
-                        transport_type=getattr(
-                            interface,
-                            "transport",
-                            "grpc",
-                        ),
-                    )
-                    transports_list.append(transport)
+        default_transport = A2ATransportsProperties(
+            host=self._host,
+            port=self._port,
+            path=json_rpc,
+            support_tls=False,
+            extra={},
+            transport_type=DEFAULT_TRANSPORT,
+        )
+        transports_list.append(default_transport)
 
         return transports_list
 
-    def _normalize_provider(
-            self,
-            provider: Optional[Union[str, Dict[str, Any], Any]],
-    ) -> Dict[str, Any]:
-        """Normalize provider to dict format with organization and url.
+    def _get_agent_card_field(
+        self,
+        field_name: str,
+        default: Any = None,
+    ) -> Any:
+        """Extract field from agent_card (dict or AgentCard object).
 
         Args:
-            provider: Provider as string, dict, or AgentProvider object
+            field_name: Field name to retrieve
+            default: Default value if not found
 
         Returns:
-            Normalized provider dict
+            Field value or default
         """
-        if provider is None:
-            return {"organization": "", "url": ""}
+        agent_card = self._a2a_config.agent_card
+        if agent_card is None:
+            return default
 
-        if isinstance(provider, str):
-            return {"organization": provider, "url": ""}
-
-        if isinstance(provider, dict):
-            provider_dict = dict(provider)
-            if "organization" not in provider_dict:
-                provider_dict["organization"] = provider_dict.get("name", "")
-            if "url" not in provider_dict:
-                provider_dict["url"] = ""
-            return provider_dict
-
-        # Try to coerce object-like provider to dict
-        try:
-            organization = getattr(
-                provider,
-                "organization",
-                None,
-            ) or getattr(
-                provider,
-                "name",
-                "",
-            )
-            url = getattr(provider, "url", "")
-            return {"organization": organization, "url": url}
-        except Exception:
-            logger.debug(
-                "[A2A] Unable to normalize provider of type %s",
-                type(provider),
-                exc_info=True,
-            )
-            return {"organization": "", "url": ""}
+        if isinstance(agent_card, dict):
+            return agent_card.get(field_name, default)
+        else:
+            # AgentCard object
+            return getattr(agent_card, field_name, default)
 
     def get_agent_card(
-            self,
-            app: Optional[FastAPI] = None,  # pylint: disable=unused-argument
+        self,
+        app: Optional[FastAPI] = None,  # pylint: disable=unused-argument
     ) -> AgentCard:
-        """Build and return AgentCard with configured options.
+        """Build AgentCard from configuration.
 
-        Constructs an AgentCard with all configured options, applying defaults
-        where user values are not provided. Some fields like capabilities,
-        protocol_version, etc. are set based on runtime implementation and
-        cannot be overridden by users.
+        Constructs AgentCard from agent_card field (dict or AgentCard),
+        filling missing fields with defaults and computed values.
 
         Args:
-            app: Optional FastAPI app instance
+            app: FastAPI app instance (for URL generation)
 
         Returns:
             Configured AgentCard instance
         """
-        # Build required fields with defaults
-        # Use default base URL for JSON-RPC endpoint
-        base = self._card_url or "http://127.0.0.1:8000"
-        base_with_slash = base.rstrip("/") + "/"
-        json_rpc_url = urljoin(
-            base_with_slash,
-            self._json_rpc_path.lstrip("/"),
+
+        # Generate URL if not provided
+        url = self._get_agent_card_field("url")
+        if url is None:
+            path = getattr(app, "root_path", "")
+            json_rpc = urljoin(
+                path.rstrip("/") + "/",
+                self._json_rpc_path.lstrip("/"),
+            ).lstrip("/")
+            base_url = (
+                f"{self._host}:{self._port}"
+                if self._host.startswith(("http://", "https://"))
+                else f"http://{self._host}:{self._port}"
+            )
+            url = f"{base_url}/{json_rpc}"
+
+        # Initialize from agent_card
+        card_kwargs = {}
+
+        # Set required fields
+        card_kwargs["name"] = self._get_agent_card_field(
+            "name",
+            self._agent_name,
+        )
+        card_kwargs["description"] = self._get_agent_card_field(
+            "description",
+            self._agent_description,
+        )
+        card_kwargs["url"] = url
+        card_kwargs["version"] = self._get_agent_card_field(
+            "version",
+            AGENT_VERSION,
         )
 
-        card_kwargs: Dict[str, Any] = {
-            "name": self._agent_name,
-            "description": self._agent_description,
-            "url": self._card_url or json_rpc_url,
-            "version": self._card_version or runtime_version,
-            "capabilities": AgentCapabilities(
-                streaming=False,
-                push_notifications=False,
-            ),
-            "skills": self._skills or [],
-            "default_input_modes": self._default_input_modes
-                                   or DEFAULT_INPUT_OUTPUT_MODES,
-            "default_output_modes": self._default_output_modes
-                                    or DEFAULT_INPUT_OUTPUT_MODES,
-        }
+        # Set defaults for required fields
+        card_kwargs["preferred_transport"] = self._get_agent_card_field(
+            "preferred_transport",
+            DEFAULT_TRANSPORT,
+        )
+        card_kwargs["additional_interfaces"] = self._get_agent_card_field(
+            "additional_interfaces",
+            [],
+        )
+        card_kwargs["default_input_modes"] = self._get_agent_card_field(
+            "default_input_modes",
+            DEFAULT_INPUT_OUTPUT_MODES,
+        )
+        card_kwargs["default_output_modes"] = self._get_agent_card_field(
+            "default_output_modes",
+            DEFAULT_INPUT_OUTPUT_MODES,
+        )
+        card_kwargs["skills"] = self._get_agent_card_field(
+            "skills",
+            [
+                AgentSkill(
+                    id="dialog",
+                    name="Natural Language Dialog Skill",
+                    description=(
+                        "Enables natural language conversation and dialogue "
+                        "with users"
+                    ),
+                    tags=["natural language", "dialog", "conversation"],
+                    examples=[
+                        "Hello, how are you?",
+                        "Can you help me with something?",
+                    ],
+                ),
+            ],
+        )
+        # Runtime-managed AgentCard fields: user values are ignored
+        if self._get_agent_card_field("capabilities") is not None:
+            logger.warning(
+                "[A2A] Ignoring user-provided AgentCard.capabilities; "
+                "runtime controls this field.",
+            )
+        card_kwargs["capabilities"] = AgentCapabilities(
+            streaming=False,
+            push_notifications=False,
+            state_transition_history=False,
+        )
 
-        # Add optional transport fields
-        preferred_transport = self._preferred_transport or DEFAULT_TRANSPORT
-        if preferred_transport:
-            card_kwargs["preferred_transport"] = preferred_transport
+        if self._get_agent_card_field("protocol_version") is not None:
+            logger.warning(
+                "[A2A] Ignoring user-provided AgentCard.protocol_version; "
+                "runtime controls this field.",
+            )
 
-        if self._additional_interfaces:
-            card_kwargs["additional_interfaces"] = self._additional_interfaces
+        if (
+            self._get_agent_card_field(
+                "supports_authenticated_extended_card",
+            )
+            is not None
+        ):
+            logger.warning(
+                "[A2A] Ignoring user-provided "
+                "AgentCard.supports_authenticated_extended_card; "
+                "runtime controls this field.",
+            )
 
-        # Handle provider
-        if self._provider:
-            card_kwargs["provider"] = self._normalize_provider(self._provider)
+        if self._get_agent_card_field("signatures") is not None:
+            logger.warning(
+                "[A2A] Ignoring user-provided AgentCard.signatures; "
+                "runtime controls this field.",
+            )
 
-        # Add other optional fields (matching AgentCard field names)
-        optional_fields = [
+        # Add optional fields
+        for field in [
+            "provider",
             "documentation_url",
             "icon_url",
             "security_schemes",
             "security",
-        ]
-        for field in optional_fields:
-            value = getattr(self, f"_{field}", None)
-            if value is not None:
+        ]:
+            value = self._get_agent_card_field(field)
+            if value is None:
+                continue
+            # Backward compatibility: allow simple string provider and map it
+            # to AgentProvider.organization
+            if field == "provider" and isinstance(value, str):
+                card_kwargs[field] = {
+                    "organization": value,
+                    "url": url,
+                }
+            else:
                 card_kwargs[field] = value
 
         return AgentCard(**card_kwargs)
