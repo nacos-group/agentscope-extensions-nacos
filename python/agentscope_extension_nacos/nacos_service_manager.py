@@ -32,6 +32,7 @@ import os
 import threading
 from typing import Optional
 
+from dotenv import find_dotenv, load_dotenv
 from v2.nacos import (
     ClientConfig,
     ClientConfigBuilder,
@@ -106,9 +107,11 @@ class NacosServiceManager:
     def load_config_from_env(cls) -> ClientConfig:
         """Load ClientConfig from environment variables.
         
+        Automatically loads .env or .env.example file if present.
+        
         Required environment variables:
-            NACOS_SERVER_ADDRESS
-            NACOS_NAMESPACE_ID
+            NACOS_SERVER_ADDR (or NACOS_SERVER_ADDRESS for backward compatibility)
+            NACOS_NAMESPACE_ID (optional, default: "public")
         
         Optional environment variables (choose one):
             NACOS_ACCESS_KEY + NACOS_SECRET_KEY  (Alibaba Cloud MSE)
@@ -120,19 +123,25 @@ class NacosServiceManager:
         Raises:
             ValueError: If required environment variables are missing
         """
-        server_address = os.getenv("NACOS_SERVER_ADDRESS")
-        namespace_id = os.getenv("NACOS_NAMESPACE_ID")
+        # Load .env or .env.example if present
+        dotenv_path = find_dotenv(raise_error_if_not_found=False)
+        if dotenv_path:
+            load_dotenv(dotenv_path, override=False)
+            logger.debug(f"Loaded .env file from: {dotenv_path}")
+        else:
+            # Try .env.example as fallback
+            if os.path.exists(".env.example"):
+                load_dotenv(".env.example", override=False)
+                logger.debug("Loaded .env.example file")
+        
+        # Support both NACOS_SERVER_ADDR and NACOS_SERVER_ADDRESS for compatibility
+        server_address = os.getenv("NACOS_SERVER_ADDR") or os.getenv("NACOS_SERVER_ADDRESS")
+        namespace_id = os.getenv("NACOS_NAMESPACE_ID", "public")
         
         if not server_address:
             raise ValueError(
-                "Missing required environment variable: NACOS_SERVER_ADDRESS\n"
+                "Missing required environment variable: NACOS_SERVER_ADDR\n"
                 "Please set it to your Nacos server address, e.g., 'localhost:8848'"
-            )
-        
-        if not namespace_id:
-            raise ValueError(
-                "Missing required environment variable: NACOS_NAMESPACE_ID\n"
-                "Please set it to your Nacos namespace, e.g., 'public'"
             )
         
         builder = ClientConfigBuilder()
