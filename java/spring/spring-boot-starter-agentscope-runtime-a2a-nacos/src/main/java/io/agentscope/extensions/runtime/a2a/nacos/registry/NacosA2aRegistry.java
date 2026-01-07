@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2025 Alibaba Group Holding Ltd.
+ * Copyright 1999-2026 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.agentscope.extensions.nacos.a2a.registry;
+package io.agentscope.extensions.runtime.a2a.nacos.registry;
 
 import com.alibaba.nacos.api.ai.A2aService;
 import com.alibaba.nacos.api.ai.AiFactory;
@@ -24,8 +24,7 @@ import com.alibaba.nacos.api.ai.model.a2a.AgentCardDetailInfo;
 import com.alibaba.nacos.api.ai.model.a2a.AgentEndpoint;
 import com.alibaba.nacos.api.exception.NacosException;
 import com.alibaba.nacos.api.exception.runtime.NacosRuntimeException;
-import io.agentscope.core.a2a.agent.utils.LoggerUtil;
-import io.agentscope.extensions.nacos.a2a.utils.AgentCardConverterUtil;
+import io.agentscope.extensions.runtime.a2a.nacos.utils.AgentCardConverterUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,7 +63,7 @@ public class NacosA2aRegistry {
             tryReleaseAgentCard(nacosAgentCard, a2aProperties);
             registerEndpoint(nacosAgentCard, a2aProperties);
         } catch (NacosException e) {
-            LoggerUtil.error(log, "Register agent card {} to Nacos failed,", agentCard.name(), e);
+            log.error("Register agent card {} to Nacos failed,", agentCard.name(), e);
             throw new NacosRuntimeException(e.getErrCode(), e.getErrMsg());
         }
     }
@@ -72,13 +71,12 @@ public class NacosA2aRegistry {
     private void tryReleaseAgentCard(AgentCard agentCard, NacosA2aRegistryProperties a2aProperties)
             throws NacosException {
         if (null != tryGetAgentCardFromNacos(agentCard)) {
-            LoggerUtil.warn(log, "Agent card {} already exists, agentCard release might be ignored.",
-                    agentCard.getName());
+            log.warn("Agent card {} already exists, agentCard release might be ignored.", agentCard.getName());
         }
-        LoggerUtil.info(log, "Register agent card {} to Nacos. ", agentCard.getName());
+        log.info("Register agent card {} to Nacos. ", agentCard.getName());
         a2aService.releaseAgentCard(agentCard, AiConstants.A2a.A2A_ENDPOINT_TYPE_SERVICE,
                 a2aProperties.isSetAsLatest());
-        LoggerUtil.info(log, "Register agent card {} to Nacos successfully. ", agentCard.getName());
+        log.info("Register agent card {} to Nacos successfully. ", agentCard.getName());
     }
     
     private AgentCardDetailInfo tryGetAgentCardFromNacos(AgentCard agentCard) throws NacosException {
@@ -91,14 +89,14 @@ public class NacosA2aRegistry {
     
     private void registerEndpoint(AgentCard agentCard, NacosA2aRegistryProperties a2aProperties) throws NacosException {
         if (!a2aProperties.enabledRegisterEndpoint()) {
-            LoggerUtil.info(log, "Disabled register endpoint(s) to Agent, skip endpoint(s) register step.");
+            log.info("Disabled register endpoint(s) to Agent, skip endpoint(s) register step.");
             return;
         }
         if (a2aProperties.transportProperties().isEmpty()) {
-            LoggerUtil.warn(log, "No endpoint(s) found, skip endpoint(s) register step.");
+            log.warn("No endpoint(s) found, skip endpoint(s) register step.");
             return;
         }
-        LoggerUtil.info(log, "Register {} endpoint(s) to Nacos", a2aProperties.transportProperties().size());
+        log.info("Register {} endpoint(s) to Nacos", a2aProperties.transportProperties().size());
         if (a2aProperties.transportProperties().size() == 1) {
             AgentEndpoint endpoint = buildAgentEndpoint(a2aProperties.transportProperties().values().iterator().next(),
                     agentCard.getVersion());

@@ -31,9 +31,7 @@
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         
-        <revision>1.0.3</revision>
-        <agentscope.version>1.0.3</agentscope.version>
-        <agentscope-extensions.version>${revision}</agentscope-extensions.version>
+        <agentscope.version>1.0.6</agentscope.version>
         
         <logback.version>1.5.20</logback.version>
     </properties>
@@ -41,13 +39,17 @@
     <dependencies>
         <dependency>
             <groupId>io.agentscope</groupId>
-            <artifactId>agentscope-extensions-a2a-nacos</artifactId>
-            <version>${agentscope-extensions.version}</version>
+            <artifactId>agentscope-core</artifactId>
+            <version>${agentscope.version}</version>
         </dependency>
-        
         <dependency>
             <groupId>io.agentscope</groupId>
-            <artifactId>agentscope-core</artifactId>
+            <artifactId>agentscope-extensions-a2a-client</artifactId>
+            <version>${agentscope.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.agentscope</groupId>
+            <artifactId>agentscope-extensions-nacos-a2a</artifactId>
             <version>${agentscope.version}</version>
         </dependency>
         

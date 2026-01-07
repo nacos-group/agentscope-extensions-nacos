@@ -47,6 +47,11 @@
     
     <dependencies>
         <dependency>
+            <groupId>com.alibaba.nacos</groupId>
+            <artifactId>nacos-client</artifactId>
+        </dependency>
+        
+        <dependency>
             <groupId>io.agentscope</groupId>
             <artifactId>agentscope-runtime-web</artifactId>
             <scope>provided</scope>
@@ -65,13 +70,6 @@
             <artifactId>spring-boot-configuration-processor</artifactId>
             <optional>true</optional>
         </dependency>
-        
-        <dependency>
-            <groupId>io.agentscope</groupId>
-            <artifactId>agentscope-extensions-a2a-nacos</artifactId>
-            <version>${parent.version}</version>
-        </dependency>
-        
     </dependencies>
     
 </project>

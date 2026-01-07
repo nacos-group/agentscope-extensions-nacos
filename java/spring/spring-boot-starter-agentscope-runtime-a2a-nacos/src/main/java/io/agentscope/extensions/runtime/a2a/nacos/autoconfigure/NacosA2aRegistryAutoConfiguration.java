@@ -17,7 +17,7 @@
 package io.agentscope.extensions.runtime.a2a.nacos.autoconfigure;
 
 import com.alibaba.nacos.api.ai.A2aService;
-import io.agentscope.extensions.nacos.a2a.registry.NacosA2aRegistry;
+import io.agentscope.extensions.runtime.a2a.nacos.registry.NacosA2aRegistry;
 import io.agentscope.extensions.runtime.a2a.nacos.properties.NacosA2aProperties;
 import io.agentscope.extensions.runtime.a2a.nacos.registry.NacosAgentRegistry;
 import io.agentscope.extensions.runtime.a2a.registry.autoconfigure.A2aServerRegistryAutoConfiguration;

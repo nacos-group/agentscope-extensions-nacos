@@ -6,7 +6,6 @@ This project provides integration between AgentScope and Nacos service discovery
 
 ```
 java/
-├── agentscope-extensions-a2a-nacos                             # Nacos integration for A2A protocol
 ├── agentscope-extensions-mcp-nacos                             # Nacos integration for MCP protocol
 ├── example                                                     # Examples demonstrating usage
 │   ├── a2a-example                                             # A2A protocol examples with Nacos
@@ -16,14 +15,40 @@ java/
 ```
 
 ```
-agentscope-extensions-a2a has been contribute into agentscope-java in 1.0.3 version, so remove in this extensions project.
+`agentscope-a2a-nacos-spring-boot-starter` has been contributed into agentscope-java in 1.0.6 version, so remove in this extensions project.
+
+new dependencies:
+
+<dependency>
+    <groupId>io.agentscope</groupId>
+    <artifactId>agentscope-nacos-spring-boot-starter</artifactId>
+    <!-- upper than 1.0.6 -->
+    <version>${agentscope.version}</version>
+</dependency>
+
+What's more, `agentscope-extensions-a2a-nacos` also has been contributed into agentscope-java in 1.0.6 version, you can use new dependency `agentscope-extensions-nacos-a2a` replaced.
 
 new dependencies:
 
 <dependency>
     <groupId>io.agentscope</groupId>
     <artifactId>agentscope-extensions-a2a-client</artifactId>
-    <!-- upper than 1.0.3 -->
+    <!-- upper than 1.0.6 -->
+    <version>${agentscope.version}</version>
+</dependency>
+<dependency>
+    <groupId>io.agentscope</groupId>
+    <artifactId>agentscope-extensions-nacos-a2a</artifactId>
+    <!-- upper than 1.0.6 -->
+    <version>${agentscope.version}</version>
+</dependency>
+
+or just depend
+
+<dependency>
+    <groupId>io.agentscope</groupId>
+    <artifactId>agentscope</artifactId>
+    <!-- upper than 1.0.6 -->
     <version>${agentscope.version}</version>
 </dependency>
 ```
@@ -34,21 +59,13 @@ To ensure proper functionality, different versions of extensions must be used wi
 
 | agentscope-extensions-nacos Version | agentscope-core Version | agentscope-runtime Version |
 |-------------------------------------|-------------------------|----------------------------|
-| 1.0.3                               | 1.0.3                   | 1.0.0                      |
+| 1.0.6                               | 1.0.6                   | 1.0.0                      |
+| 1.0.3                               | 1.0.3 ~ 1.0.5           | 1.0.0                      |
 | 1.0.0                               | 1.0.0                   | 1.0.0                      |
 | 0.2.1                               | 0.2.1                   | 0.1.3                      |
 | 0.2.0                               | 0.2.1                   | 0.1.2                      |
 
 ## Modules Overview
-
-### agentscope-extensions-a2a-nacos
-
-Nacos integration for A2A protocol. This module enables discovery of A2A agents registered in Nacos.
-
-Key features:
-- NacosAgentCardProducer: Retrieves agent cards from Nacos registry
-- Automatic subscription to agent card updates
-- Cache management for efficient agent discovery
 
 ### agentscope-extensions-mcp-nacos
 
@@ -76,8 +93,9 @@ Key features:
 
 Located in [a2a-example](file:///Users/xiweng.yy/Documents/java/opensource/agentscope-extensions-nacos/java/example/a2a-example) directory:
 
-1. **a2a-register-example**: Demonstrates how to register an agent with Nacos
-2. **a2a-discovery-example**: Shows how to discover and communicate with agents registered in Nacos
+1. **a2a-register-example**: Demonstrates how to register an agent with Nacos in AgentScope Java
+2. **a2a-register-runtime-example**: Demonstrates how to register an agent with Nacos in AgentScope-Runtime Java
+3. **a2a-discovery-example**: Shows how to discover and communicate with agents registered in Nacos
 
 ### MCP Protocol Examples
 
@@ -146,8 +164,13 @@ To discover and communicate with A2A agents:
 </dependency>
 <dependency>
     <groupId>io.agentscope</groupId>
-    <artifactId>agentscope-extensions-a2a-nacos</artifactId>
-    <version>${agentscope-extensions-nacos.version}</version>
+    <artifactId>agentscope-extensions-a2a-client</artifactId>
+    <version>${agentscope.version}</version>
+</dependency>
+<dependency>
+    <groupId>io.agentscope</groupId>
+    <artifactId>agentscope-extensions-nacos-a2a</artifactId>
+    <version>${agentscope.version}</version>
 </dependency>
 ```
 

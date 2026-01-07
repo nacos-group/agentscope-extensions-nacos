@@ -20,10 +20,6 @@ import com.alibaba.nacos.api.ai.constant.AiConstants;
 import com.alibaba.nacos.common.utils.StringUtils;
 import io.a2a.spec.AgentCard;
 import io.a2a.spec.AgentInterface;
-import io.agentscope.core.a2a.agent.utils.LoggerUtil;
-import io.agentscope.extensions.nacos.a2a.registry.NacosA2aRegistry;
-import io.agentscope.extensions.nacos.a2a.registry.NacosA2aRegistryProperties;
-import io.agentscope.extensions.nacos.a2a.registry.NacosA2aRegistryTransportProperties;
 import io.agentscope.extensions.runtime.a2a.nacos.constant.Constants;
 import io.agentscope.extensions.runtime.a2a.nacos.properties.NacosA2aProperties;
 import io.agentscope.extensions.runtime.a2a.nacos.properties.NacosA2aTransportProperties;
@@ -87,14 +83,13 @@ public class NacosAgentRegistry implements AgentRegistry {
         getTransportProperties().forEach((transport, properties) -> result.compute(transport, (key, oldValue) -> {
             String targetTransport = key.toUpperCase();
             if (null == oldValue) {
-                LoggerUtil.warn(log,
+                log.warn(
                         "Transport {} is not export by agentscope, it might cause agentCard include an unavailable endpoint.",
                         targetTransport);
                 return overwriteAttributes(null, properties, targetTransport);
             }
             NacosA2aRegistryTransportProperties newValue = overwriteAttributes(oldValue, properties, targetTransport);
-            LoggerUtil.info(log, "Overwrite attributes for transport {} from {} to {}", targetTransport, oldValue,
-                    newValue);
+            log.info("Overwrite attributes for transport {} from {} to {}", targetTransport, oldValue, newValue);
             return newValue;
         }));
         return result.values();
@@ -162,13 +157,12 @@ public class NacosAgentRegistry implements AgentRegistry {
             return agentCard;
         }
         String preferredTransport = nacosA2aProperties.getOverwritePreferredTransport().toUpperCase();
-        LoggerUtil.info(log, "Try to overwrite preferred transport from {} to {}", agentCard.preferredTransport(),
+        log.info("Try to overwrite preferred transport from {} to {}", agentCard.preferredTransport(),
                 preferredTransport);
         if (properties.transportProperties().containsKey(preferredTransport)) {
             return doOverwrite(agentCard, properties.transportProperties().get(preferredTransport));
         }
-        LoggerUtil.warn(log,
-                "Preferred transport {} is not found, will use original preferred transport {} with url {}",
+        log.warn("Preferred transport {} is not found, will use original preferred transport {} with url {}",
                 preferredTransport, agentCard.preferredTransport(), agentCard.url());
         return agentCard;
     }
@@ -181,8 +175,8 @@ public class NacosAgentRegistry implements AgentRegistry {
         agentInterfaces.add(agentInterface);
         AgentCard.Builder builder = new AgentCard.Builder(agentCard);
         builder.url(newUrl).preferredTransport(transport).additionalInterfaces(agentInterfaces);
-        LoggerUtil.info(log, "Overwrite preferred transport from {} to {} with url from {} to {}",
-                agentCard.preferredTransport(), transport, agentCard.url(), newUrl);
+        log.info("Overwrite preferred transport from {} to {} with url from {} to {}", agentCard.preferredTransport(),
+                transport, agentCard.url(), newUrl);
         return builder.build();
     }
     

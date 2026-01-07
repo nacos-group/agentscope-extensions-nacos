@@ -14,7 +14,7 @@ agentscope:
         provider:
           organization: Alibaba Nacos
           url: https://nacos.io
-      nacos:
-        server-addr: ${NACOS_SERVER_ADDRESS:127.0.0.1:8848}
-        username: ${NACOS_USERNAME:nacos}
-        password: ${NACOS_PASSWORD:nacos}
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDRESS:127.0.0.1:8848}
+      username: ${NACOS_USERNAME:nacos}
+      password: ${NACOS_PASSWORD:nacos}
