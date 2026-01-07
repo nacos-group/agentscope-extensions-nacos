@@ -106,6 +106,27 @@ Type any message to send to the agent, or type `exit` or `quit` to terminate the
 
 The registration example uses Spring Boot's `application.yaml` for configuration:
 
+- For `a2a-register-example`
+
+> Different From `a2a-register-runtime-example`, the nacos properties is under `agentscope.a2a.nacos` but not `agentscope.a2a.server.nacos`
+
+```yaml
+agentscope:
+  a2a:
+    server:
+      card:
+        description: "Example of A2A(Agent2Agent) Protocol Agent"
+        provider:
+          organization: Alibaba Nacos
+          url: https://nacos.io
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDRESS:127.0.0.1:8848}
+      username: ${NACOS_USERNAME:nacos}
+      password: ${NACOS_PASSWORD:nacos}
+```
+
+- For `a2a-register-runtime-example`
+
 ```yaml
 agentscope:
   a2a:
@@ -125,12 +146,12 @@ agentscope:
 
 Both examples support the following environment variables:
 
-| Variable | Description | Default |
-|----------|-------------|---------|
+| Variable               | Description          | Default          |
+|------------------------|----------------------|------------------|
 | `NACOS_SERVER_ADDRESS` | Nacos server address | `127.0.0.1:8848` |
-| `NACOS_USERNAME` | Nacos username | `nacos` |
-| `NACOS_PASSWORD` | Nacos password | `nacos` |
-| `AI_DASHSCOPE_API_KEY` | DashScope API key | None (required) |
+| `NACOS_USERNAME`       | Nacos username       | `nacos`          |
+| `NACOS_PASSWORD`       | Nacos password       | `nacos`          |
+| `AI_DASHSCOPE_API_KEY` | DashScope API key    | None (required)  |
 
 ## How It Works
 

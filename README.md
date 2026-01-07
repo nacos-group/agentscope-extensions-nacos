@@ -8,7 +8,6 @@ This project provides integration between AgentScope and Nacos service discovery
 ```
 agentscope-extensions-nacos/
 ├── java/                                                           # Java Implementation (Maven)
-│   ├── agentscope-extensions-a2a-nacos                             # Source Code of AgentScope Extension For A2A(Agent2Agent) Protocol Registry with Nacos (Discovery&Register)
 │   ├── agentscope-extensions-mcp-nacos                             # Source Code of AgentScope Extension For MCP Protocol Registry with Nacos (Discovery)
 │   ├── example                                                     # Example for AgentScope Extension Java Implementation
 │   │   ├── a2a-example                                             # Example for AgentScope Extension A2A(Agent2Agent) Protocol with Nacos Regsitry
@@ -25,14 +24,40 @@ agentscope-extensions-nacos/
 ## Java
 
 ```
-agentscope-extensions-a2a has been contribute into agentscope-java in 1.0.3 version, so remove in this extensions project.
+`agentscope-a2a-nacos-spring-boot-starter` has been contributed into agentscope-java in 1.0.6 version, so remove in this extensions project.
+
+new dependencies:
+
+<dependency>
+    <groupId>io.agentscope</groupId>
+    <artifactId>agentscope-nacos-spring-boot-starter</artifactId>
+    <!-- upper than 1.0.6 -->
+    <version>${agentscope.version}</version>
+</dependency>
+
+What's more, `agentscope-extensions-a2a-nacos` also has been contributed into agentscope-java in 1.0.6 version, you can use new dependency `agentscope-extensions-nacos-a2a` replaced.
 
 new dependencies:
 
 <dependency>
     <groupId>io.agentscope</groupId>
     <artifactId>agentscope-extensions-a2a-client</artifactId>
-    <!-- upper than 1.0.3 -->
+    <!-- upper than 1.0.6 -->
+    <version>${agentscope.version}</version>
+</dependency>
+<dependency>
+    <groupId>io.agentscope</groupId>
+    <artifactId>agentscope-extensions-nacos-a2a</artifactId>
+    <!-- upper than 1.0.6 -->
+    <version>${agentscope.version}</version>
+</dependency>
+
+or just depend
+
+<dependency>
+    <groupId>io.agentscope</groupId>
+    <artifactId>agentscope</artifactId>
+    <!-- upper than 1.0.6 -->
     <version>${agentscope.version}</version>
 </dependency>
 ```
